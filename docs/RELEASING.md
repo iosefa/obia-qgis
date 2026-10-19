@@ -7,6 +7,8 @@
    generator. Run `scripts/lock_engine.py /path/to/verified/micromamba`. Review
    all four manifests and their Python/OS requirements. Lock solving is a
    maintainer operation; users install only pinned manifests.
+   Preserve the solver's dependency/link order. Never alphabetize package
+   entries: Windows post-link scripts need their DLL dependencies installed first.
 3. Download the Windows manifest with `scripts/download_engine_packages.py
    win-64 /path/to/archives`, then run `scripts/audit_windows_paths.py
    /path/to/archives --write`. The audit hashes all archives and scans both payload

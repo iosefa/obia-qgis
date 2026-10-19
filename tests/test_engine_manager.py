@@ -73,6 +73,27 @@ class EngineManagerTests(unittest.TestCase):
                 self.assertNotIn("pyforestscan", names)
                 self.assertGreater(manager._bootstrap_data()["size"], 0)
 
+    def test_windows_post_link_scripts_have_their_dll_dependencies_first(self):
+        with patch.object(manager, "platform_tag", return_value="win-64"):
+            lock, _ = manager._lock_data()
+        positions = {p["name"]: i for i, p in enumerate(lock["packages"])}
+        # gdk-pixbuf's post-link script runs query-loaders.exe. Alphabetizing the
+        # lock ran it without these DLLs and stalled Windows installation.
+        for dependency in (
+            "libglib",
+            "libintl",
+            "libjpeg-turbo",
+            "liblzma",
+            "libpng",
+            "libtiff",
+            "ucrt",
+            "vc",
+            "vc14_runtime",
+        ):
+            with self.subTest(dependency=dependency):
+                self.assertLess(positions[dependency], positions["gdk-pixbuf"])
+        self.assertLess(positions["gdk-pixbuf"], positions["librsvg"])
+
     def test_download_verified_and_cached(self):
         data = b"verified package"
         digest = hashlib.sha256(data).hexdigest()

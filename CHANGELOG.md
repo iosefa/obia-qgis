@@ -8,6 +8,8 @@
   dialog that exports a UTF-8 tab-separated `.txt` matrix. Reads OBIA class
   mappings, reprojects points, and samples cells without loading the whole raster.
 - Published installable plugin ZIPs as GitHub release assets.
+- Fixed Windows installation stalling in a package setup script by installing
+  the pinned packages in dependency order; regenerated the matching path audit.
 
 ## 0.1.1
 

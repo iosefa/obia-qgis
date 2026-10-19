@@ -94,7 +94,9 @@ def main():
             "platform": tag,
             "channel": "https://conda.anaconda.org/conda-forge",
             "specs": SPECS,
-            "packages": sorted(packages, key=lambda p: p["name"]),
+            # Explicit installs preserve this sequence. A package's post-link
+            # script may execute binaries requiring already installed DLLs.
+            "packages": packages,
         }
         (ROOT / "runtime/locks" / (tag + ".json")).write_text(
             json.dumps(lock, indent=2) + "\n"
