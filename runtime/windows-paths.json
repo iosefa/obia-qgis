@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "lock_sha256": "84de173c0dceac99ae85b55fefb28807a072c9584fba5f1f120afc6fd337891b",
+  "installer_sha256": "a6d804394b2418991c4e29562853eaace2f2ce9d9da661a98e74e02e8dbb44b0",
+  "package_count": 190,
+  "member_count": 30201,
+  "cache_file": "https/conda.anaconda.org/conda-forge/win-64/scikit-learn-1.9.1-np2py312hea30aaf_1/Lib/site-packages/sklearn/ensemble/_hist_gradient_boosting/tests/__pycache__/test_monotonic_constraints.cpython-312.pyc",
+  "cache_directory": "https/conda.anaconda.org/conda-forge/win-64/numpy-2.5.4-py312ha3f287d_0/Lib/site-packages/numpy-2.5.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat",
+  "prefix_file": "Lib/site-packages/sklearn/ensemble/_hist_gradient_boosting/tests/__pycache__/test_monotonic_constraints.cpython-312.pyc",
+  "prefix_directory": "Lib/site-packages/numpy-2.5.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat"
+}

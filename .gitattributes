@@ -1,0 +1,2 @@
+# Preserve the exact release bytes recorded in vendor/obia/SOURCE.json.
+vendor/obia/** -text

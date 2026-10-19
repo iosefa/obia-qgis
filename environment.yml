@@ -1,0 +1,9 @@
+name: obia-qgis
+# Developer/test environment only. Users install a ZIP into their existing QGIS.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - qgis=4.2
+  - gdal
+  - numpy

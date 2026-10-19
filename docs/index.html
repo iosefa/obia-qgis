@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>OBIA for QGIS — help</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;color:#233730;max-width:880px;margin:40px auto;padding:0 24px;background:#fafbf8}
+h1,h2,h3{line-height:1.2;color:#133b36}h2{margin-top:2em;border-top:1px solid #d2ddd6;padding-top:1em}
+a{color:#176453}code{background:#e9eee7;padding:2px 5px;border-radius:3px}li{margin:5px 0}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1px solid #d2ddd6;padding:10px}
+.intro{font-size:1.2em}.note{padding:16px 20px;background:#eef3e9;border-left:4px solid #659b75}
+</style></head><body>
+<h1>OBIA for QGIS</h1>
+<p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
+<p>Plugin 0.1.0 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
+<a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#limits">Limits</a></nav>
+
+<h2 id="setup">Install and maintain the engine</h2>
+<ol><li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select <code>obia_qgis-0.1.0.zip</code> and enable OBIA.</li>
+<li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
+<li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
+<p>Setup supplies a private Python and scientific stack for Windows x64, Linux x64, and macOS Intel/Apple Silicon.
+It shows download size and required free space. It does not install into QGIS or alter other Python environments.
+Internet is required initially; installed engines process local data offline. All downloads are HTTPS and SHA256 verified.</p>
+<p><b>Repair engine</b> builds and tests a new installation before activating it. Failure or cancellation keeps the previous working engine.
+<b>Remove engine</b> removes only recognized engine generations; verified downloads remain cached. Your data and projects are separate.</p>
+<h3>Windows paths</h3>
+<p>The engine uses a short path outside your QGIS profile, normally <code>%LOCALAPPDATA%\obia\e</code>.
+Existing short directory names are used when available. Long profiles automatically fall back to <code>%USERPROFILE%\.obia-e</code>
+when that fits the audited package paths. No Windows long-path registry changes or administrator rights are required by setup.</p>
+<p>Package paths are checked before any download. If an unusually long profile or network root still cannot fit, use QGIS
+<b>Settings → Options → System → Environment</b> to set <code>OBIA_ENGINE_ROOT</code> to a new, shorter folder you control,
+then restart QGIS. Do not create that folder yourself. Keep the override while using that engine. A failed unpacking cache is safely rebuilt on retry.</p>
+<p>Metadata allows QGIS through 4.99 but does not certify every release/platform. See the repository's verification record before deployment.
+Windows/Linux ARM engine builds are not included. Restart QGIS after updating the plugin ZIP.</p>
+
+<h2 id="workflow">A simple object workflow</h2>
+<ol><li>Load a local, georeferenced raster. Clip it to a small study area first.</li>
+<li>Run <b>SLIC segmentation</b>. Save object polygons and optionally matching segment IDs.</li>
+<li>Run <b>Extract object features</b> when you need more than the initial band means, standard deviations, and counts.</li>
+<li>Create representative labelled points with a class field. Run <b>Label objects from points</b> and inspect conflicting objects.</li>
+<li>Run <b>Classify objects</b> with the full object layer, labelled training layer, and numeric predictor fields.</li></ol>
+<p class="note"><b>Bands:</b> selectors use one-based QGIS band numbers. OBIA field names use zero-based positions:
+<code>b0_mean</code> is the mean of QGIS band 1. Statistics use source pixel values, not renderer colors.</p>
+
+<h2 id="slic">SLIC segmentation</h2>
+<p><code>obia:slic</code> produces polygons with unique <code>segment_id</code> values and selected-band mean, standard deviation,
+and valid-count fields. Set the approximate object count and compactness; larger compactness favors more regular shapes.
+Advanced settings include smoothing sigma in pixels and SLICO adaptive compactness.</p>
+<p>All segmentation tools normalize selected bands independently to [0, 1], with RGB-to-Lab conversion disabled.
+An empty band selection means all bands. Optional masks must match the source grid; nonzero valid pixels are included.
+Source NoData and nonfinite selected-band values are excluded. The optional GeoTIFF contains the same segment IDs; zero is NoData.</p>
+
+<h2 id="felzenszwalb">Felzenszwalb segmentation</h2>
+<p><code>obia:felzenszwalb</code> uses graph-based regions. Larger scale generally makes larger objects.
+Set smoothing sigma and minimum region size in pixels. Outputs and band/mask behavior match SLIC.</p>
+
+<h2 id="quickshift">Quickshift segmentation</h2>
+<p><code>obia:quickshift</code> uses mode-seeking regions. Kernel size, maximum distance, and the color-to-space ratio control grouping.
+Outputs and band/mask behavior match SLIC. Quickshift and Felzenszwalb operate on the prepared image, then clip results to the mask;
+pixels outside the mask can affect nearby segmentation boundaries.</p>
+
+<h2 id="watershed">Watershed segmentation</h2>
+<p><code>obia:watershed</code> requires exactly one selected band. It floods low values in that surface first.
+Choose an approximate basin count and compactness. Use a precomputed gradient raster to segment imagery by its boundaries.
+An empty band selection only works when the input has one band.</p>
+
+<h2 id="extractfeatures">Extract object features</h2>
+<p><code>obia:extractfeatures</code> adds measurements to existing polygons, reprojecting them to the raster CRS.
+It replaces fields with the same names, preserves other attributes, and writes a new GeoPackage.</p>
+<ul><li><b>Statistics:</b> mean, standard deviation, min/max, median, IQR, MAD, counts/fractions, variance, skewness, and kurtosis. Optional p10/p90.</li>
+<li><b>NDVI:</b> set both the near-infrared and red band fields; leave both empty to omit it. Summaries use per-pixel (NIR − red)/(NIR + red).</li>
+<li><b>Shape:</b> area, perimeter, axes, elongation, circularity, solidity, rectangularity, orientation, and hole count.
+Map units require a projected CRS; choose pixel units for geographic rasters. Area uses squared units.</li>
+<li><b>Texture:</b> enable GLCM texture for the selected bands. Distance is in pixels; gray levels range from 2 to 256 (default 32).
+Quantization bounds are fitted per band over the image and shared across objects. Tiny objects may have no valid pixel pairs.</li></ul>
+<p>Raster masks, NoData, and polygon holes are respected. Outside polygons and undefined measurements retain NULL values.
+Feature masks limit samples without changing the polygon's shape. Inspect missing values before training.</p>
+
+<h2 id="labelobjects">Label objects from points</h2>
+<p><code>obia:labelobjects</code> assigns the chosen point class field to <code>feature_class</code> on each intersecting object.
+Points are reprojected to the object CRS. The main output contains only objects whose points agree on one class.
+Objects with conflicting classes are excluded and can be saved separately; unlabelled objects are excluded.
+Previous labels are reset. Points on boundaries can label more than one object; inspect their positions.</p>
+
+<h2 id="classifyobjects">Classify objects</h2>
+<p><code>obia:classifyobjects</code> fits Random Forest, Extra Trees, or XGBoost using selected numeric fields present in both
+the training and prediction layers. Exclude IDs, labels, grouping fields, and prior predictions. Output adds
+<code>predicted_class</code> and <code>prediction_margin</code>. The margin is the gap between the top two probabilities, not an accuracy estimate.</p>
+<p>Choose the number of trees and holdout fraction. Advanced settings include maximum depth and random seed.
+A depth of zero means unlimited for Random Forest/Extra Trees and depth 6 for XGBoost. Computation uses one estimator thread per job.</p>
+<h3>Validation</h3>
+<p>The default reserves 20% of samples with a stratified random split. Set the fraction to 0 to train on all samples without held-out accuracy.
+Advanced grouped validation keeps each site/group together; select its group field. Spatial validation holds out square blocks in projected CRS units.
+The optional buffer excludes training geometries near test geometries (whole groups/blocks when applicable).
+Every class must remain in training; small or poorly distributed datasets can fail this requirement.</p>
+<p>The HTML report describes holdout predictions only. OBIA does not refit on held-out samples afterward.
+Random splits may overstate performance for neighboring samples; choose grouped/spatial validation to assess transfer to new areas.</p>
+
+<h2 id="classifypixels">Classify pixels</h2>
+<p><code>obia:classifypixels</code> learns from pixels containing labelled points and predicts every valid pixel using the selected bands.
+Points are reprojected to the raster CRS. Outside/NoData points and conflicting labels in a single pixel stop processing;
+matching duplicates count once. The same model and validation choices are available as for objects.</p>
+<p>The output preserves the raster CRS, dimensions, and transform. NoData is <code>0</code>; class codes are <code>1..K</code>,
+which may differ from numeric input labels. Read the mapping in the HTML report or GeoTIFF <code>class_mapping</code> tag before styling.</p>
+
+<h2 id="checkdependencies">Check OBIA dependencies</h2>
+<p><code>obia:checkdependencies</code> checks installed-engine status and runs a small real segmentation → features → labels → classification workflow,
+including XGBoost and raster/vector writes. It returns an HTML report and a <code>READY</code> boolean, so an unavailable engine can still produce a useful report.
+Use <b>Set up OBIA → Repair engine</b> if validation fails.</p>
+
+<h2 id="limits">Inputs, memory, and outputs</h2>
+<p>Use local raster files with a saved CRS. Export web layers and subdatasets to GeoTIFF first. Apply band scale/offset metadata to actual values before processing.
+Raster renderer changes, the map view, and the project CRS do not change analysis inputs.</p>
+<p>Vectors honor Processing's selected-features option, filters, and pending edits. Supply valid polygons or single points with a CRS.
+Existing segment IDs must be unique and non-null; missing IDs are generated. Raster masks must already be aligned to the source grid.</p>
+<p>Full raster data and outputs occupy memory. Prediction batching does not make the workflow out-of-core. Clip large images first.
+Use QGIS for clipping, reprojection, mosaicking, rasterization, and styling.</p>
+<p>Choose distinct output paths separate from all inputs. Vector outputs are GeoPackages, rasters are GeoTIFFs, and reports are HTML.
+Each completed file is staged before replacement. Canceling a multi-output job can retain a completed file or a hidden staging file.</p>
+<p>Point clouds, optional deep-learning detection, SHAP, cross-validation UI, and serialized model persistence are outside this plugin.</p>
+<h2>License and sources</h2>
+<p>Plugin: GPLv3. Bundled OBIA 0.2.0: MIT, with its original notice retained. Installer/UI adaptations credit Nicholas Rogers and Joseph Percival's
+GPL-2.0-or-later PyForestScan for QGIS. Separately downloaded packages retain their own licenses.</p>
+<p><a href="https://github.com/iosefa/obia-qgis">Plugin source</a> · <a href="https://github.com/iosefa/obia/tree/v0.2.0">OBIA v0.2.0 source</a></p>
+</body></html>

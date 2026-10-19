@@ -1,0 +1,92 @@
+name: Plugin verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Disable ordinary Windows long-path support on this test runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -Value 0
+          if ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem).LongPathsEnabled -ne 0) { throw "Long paths must be disabled" }
+      - name: Test installer integrity and process isolation
+        run: python -m unittest discover -s tests -p test_engine_manager.py -v
+      - name: Install, repair, cancel a repair, and test scientific workflows
+        shell: python
+        run: |
+          import os, pathlib, shutil, subprocess, sys
+          source = pathlib.Path.cwd()
+          if os.name == "nt":
+              # A deep plugin/profile must not be repeated in extraction paths.
+              source = pathlib.Path(os.environ["RUNNER_TEMP"]) / ("long-qgis-profile-" * 5) / "python/plugins/obia_qgis"
+              shutil.copytree(pathlib.Path.cwd(), source, ignore=shutil.ignore_patterns(".git", "dist", "__pycache__"))
+              os.environ["OBIA_ENGINE_ROOT"] = str(pathlib.Path(os.environ["LOCALAPPDATA"]) / "obia/e")
+          else:
+              os.environ["OBIA_ENGINE_ROOT"] = str(pathlib.Path(os.environ["RUNNER_TEMP"]) / "obia-test-engine")
+          subprocess.run([sys.executable, str(source / "scripts/check_engine_install.py")], check=True)
+      - name: Confirm installation did not change Windows policy
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem).LongPathsEnabled -ne 0) { throw "Installer changed Windows policy" }
+
+  qgis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        qgis: ["3.40", "4.2"]
+    defaults:
+      run:
+        shell: bash -el {0}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      OBIA_TEST_QGIS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - run: sed 's/qgis=4.2/qgis=${{ matrix.qgis }}/' environment.yml > "$RUNNER_TEMP/environment.yml"
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: obia-qgis
+          environment-file: ${{ runner.temp }}/environment.yml
+          auto-activate-base: false
+      - name: Package and test the shipped plugin
+        run: |
+          python scripts/package_plugin.py
+          python -m zipfile -e dist/obia_qgis.zip "$RUNNER_TEMP/plugin"
+          export OBIA_PLUGIN_PATH="$RUNNER_TEMP/plugin/obia_qgis"
+          export OBIA_ENGINE_ROOT="$RUNNER_TEMP/obia-engine"
+          export QGIS_PREFIX_PATH="$CONDA_PREFIX"
+          export PYTHONPATH="$CONDA_PREFIX/share/qgis/python"
+          python - <<'PY'
+          import os, sys
+          sys.path.insert(0, os.environ["OBIA_PLUGIN_PATH"])
+          from runtime import manager
+          state = manager.install_engine(progress=lambda p, m: print(m, flush=True))
+          assert state["installed"], state
+          PY
+          python -m unittest discover -s tests -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obia-qgis-${{ matrix.qgis }}
+          path: dist/obia_qgis-*.zip
