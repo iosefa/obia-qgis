@@ -129,7 +129,7 @@ class QgisIntegrationTests(unittest.TestCase):
         return layer
 
     def test_provider_and_setup_do_not_import_obia(self):
-        self.assertEqual(len(self.plugin.provider.algorithms()), 9)
+        self.assertEqual(len(self.plugin.provider.algorithms()), 10)
         self.assertNotIn("obia", sys.modules)
         self.assertNotIn("rasterio", sys.modules)
         from obia_qgis.setup_dialog import SetupDialog
@@ -224,6 +224,25 @@ class QgisIntegrationTests(unittest.TestCase):
             self.keep_layer(QgsRasterLayer(result["OUTPUT"], "Pixels")).isValid()
         )
         self.assertIn("forest", Path(result["REPORT"]).read_text())
+        matrix = self.run_algorithm(
+            "confusionmatrix",
+            dict(
+                INPUT=self.keep_layer(QgsRasterLayer(result["OUTPUT"], "Classes")),
+                POINTS=points,
+                CLASS_FIELD="cover",
+                OUTPUT=str(self.d / "matrix.txt"),
+            ),
+        )
+        text = Path(matrix["OUTPUT"]).read_text()
+        self.assertTrue(text.startswith("Observed / Predicted\tforest\twater\n"))
+        self.assertEqual(
+            sum(
+                int(cell)
+                for line in text.splitlines()[1:]
+                for cell in line.split("\t")[1:]
+            ),
+            points.featureCount(),
+        )
 
     def test_selected_memory_features_and_edits_are_staged(self):
         from qgis.core import (

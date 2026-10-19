@@ -230,6 +230,7 @@ class ScientificTests(unittest.TestCase):
                 self.assertFalse(data.predicted_class.isna().any())
                 self.assertIn("precision", report.read_text())
                 self.assertIn("holdout", report.read_text())
+                self.assertIn("<h2>Confusion matrix</h2>", report.read_text())
 
     def test_pixel_class_codes_georeferencing_and_report(self):
         output, report = self.d / "classes.tif", self.d / "classes.html"
@@ -253,6 +254,7 @@ class ScientificTests(unittest.TestCase):
             )
             self.assertEqual(set(self.np.unique(src.read(1))), {1, 2})
         self.assertIn("No held-out accuracy", report.read_text())
+        self.assertIn("No confusion matrix", report.read_text())
 
     def supplied_test_data(self, pixels=False):
         data = self.gpd.read_file(self.points() if pixels else self.training())
@@ -325,7 +327,23 @@ class ScientificTests(unittest.TestCase):
                         zero_division=0,
                     )
                     self.assertEqual(result.report, expected)
+                    from sklearn.metrics import confusion_matrix
+
+                    expected_matrix = confusion_matrix(
+                        test.observed,
+                        result.model.predict(test[list(result.feature_columns)]),
+                        labels=result.classes,
+                    )
+                    self.np.testing.assert_array_equal(
+                        result.confusion_matrix, expected_matrix
+                    )
                     text = Path(payload["report"]).read_text()
+                    self.assertIn(
+                        self.jobs.matrix_table(expected_matrix, result.classes).to_html(
+                            escape=True
+                        ),
+                        text,
+                    )
                     self.assertIn(
                         f"Training samples: {len(training)}; supplied test samples: {len(test)}",
                         text,
@@ -429,6 +447,101 @@ class ScientificTests(unittest.TestCase):
         self.assertEqual(len(split.train_indices), 12)
         self.assertEqual(len(split.test_indices), 4)
         self.assertIn("holdout samples: 4", (self.d / "holdout.html").read_text())
+
+    def confusion_inputs(self, mapped=False):
+        from rasterio.transform import xy
+        from shapely.geometry import Point
+
+        raster = self.d / "class codes.tif"
+        with self.rasterio.open(
+            raster,
+            "w",
+            driver="GTiff",
+            width=3,
+            height=2,
+            count=1,
+            dtype="uint8",
+            crs="EPSG:32605",
+            transform=self.transform,
+            nodata=0,
+        ) as dst:
+            dst.write(self.np.array([[1, 2, 2], [2, 1, 0]], dtype="uint8"), 1)
+            if mapped:
+                dst.update_tags(class_mapping=json.dumps({"1": "forêt", "2": "water"}))
+        labels = (
+            ["forêt", "forêt", "forêt", "water", "unseen"]
+            if mapped
+            else [1, 1, 1, 2, 3]
+        )
+        points = self.gpd.GeoDataFrame(
+            {"truth": labels},
+            geometry=[
+                Point(*xy(self.transform, row, col))
+                for row, col in ((0, 0), (0, 1), (0, 2), (1, 0), (1, 1))
+            ],
+            crs="EPSG:32605",
+        ).to_crs(4326)
+        path = self.d / "test reference.gpkg"
+        points.to_file(path, index=False)
+        return dict(
+            raster=str(raster),
+            points=str(path),
+            label_field="truth",
+            matrix=str(self.d / "matrix.txt"),
+        ), points
+
+    def test_raster_confusion_matrix_counts_orientation_mapping_and_reprojection(self):
+        import pandas as pd
+
+        for mapped in (False, True):
+            with self.subTest(mapped=mapped):
+                payload, points = self.confusion_inputs(mapped)
+                # Identically labelled duplicates must not inflate sample counts.
+                pd.concat([points, points.iloc[[0]]], ignore_index=True).to_file(
+                    payload["points"], index=False
+                )
+                result = call_with_python(sys.executable, "confusion_matrix", payload)
+                self.assertEqual(result["samples"], 5)
+                text = Path(payload["matrix"]).read_text(encoding="utf-8")
+                self.assertTrue(text.startswith("Observed / Predicted\t"))
+                table = pd.read_csv(payload["matrix"], sep="\t", index_col=0)
+                expected = (
+                    [[1, 0, 2], [1, 0, 0], [0, 0, 1]]
+                    if mapped
+                    else [[1, 2, 0], [0, 1, 0], [1, 0, 0]]
+                )
+                self.np.testing.assert_array_equal(table.to_numpy(), expected)
+                self.assertEqual(
+                    table.columns.tolist(),
+                    ["forêt", "unseen", "water"] if mapped else ["1", "2", "3"],
+                )
+
+    def test_raster_confusion_matrix_invalid_points_preserve_existing_output(self):
+        import pandas as pd
+        from shapely.geometry import Point
+
+        p, points = self.confusion_inputs()
+        output = Path(p["matrix"])
+        output.write_bytes(b"existing matrix")
+        conflict = points.iloc[[0]].copy()
+        conflict["truth"] = 2
+        outside = points.to_crs(32605)
+        outside.loc[0, "geometry"] = Point(999, 999)
+        nodata = points.to_crs(32605)
+        nodata.loc[0, "geometry"] = Point(102.5, 198.5)
+        for invalid, message in (
+            (pd.concat([points, conflict], ignore_index=True), "Conflicting"),
+            (outside, "outside"),
+            (nodata, "NoData"),
+            (points.assign(truth=None), "label for every"),
+            (points.assign(truth="forest"), "same type"),
+        ):
+            invalid.to_file(p["points"], index=False)
+            with self.assertRaisesRegex(ValueError, message):
+                self.jobs.raster_confusion_matrix(p)
+            self.assertEqual(output.read_bytes(), b"existing matrix")
+        with self.assertRaisesRegex(ValueError, "separate"):
+            self.jobs.raster_confusion_matrix(dict(p, matrix=p["raster"]))
 
     def test_mask_misalignment_and_band_errors_preserve_output(self):
         output = self.d / "preserved.gpkg"

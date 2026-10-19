@@ -12,6 +12,7 @@ from .algorithms.segmentation import (
 from .algorithms.features import ExtractFeatures
 from .algorithms.classification import LabelObjects, ClassifyObjects, ClassifyPixels
 from .algorithms.dependency_check import CheckDependencies
+from .algorithms.accuracy import ConfusionMatrix
 
 
 class OBIAProvider(QgsProcessingProvider):
@@ -37,6 +38,7 @@ class OBIAProvider(QgsProcessingProvider):
             LabelObjects,
             ClassifyObjects,
             ClassifyPixels,
+            ConfusionMatrix,
             CheckDependencies,
         ):
             self.addAlgorithm(cls())

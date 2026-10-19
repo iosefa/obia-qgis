@@ -16,6 +16,7 @@ are installed.
 | `classification.classify` | Random Forest, Extra Trees, XGBoost; explicit numeric fields and supplied-test or holdout report |
 | `sample_pixels`, `classify_pixels`, `ClassifiedRaster.write_geotiff` | Pixel classification with class mapping and preserved georeferencing |
 | `split_objects` | Explicit partitions for supplied test layers; random, grouped, and spatial holdouts with optional buffer |
+| Confusion matrices | OBIA's validation matrices in HTML reports; Rasterio point sampling and scikit-learn counts for an existing classified map |
 | `cross_validation_splits` | Python workflow; no cross-validation UI |
 | Other estimators, custom pipelines, spatial class restrictions, reusable models | Python workflow |
 | SHAP explanations | Optional extra omitted |

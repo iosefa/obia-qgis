@@ -115,6 +115,7 @@ def validate_destinations(payload, names, raster_output=False):
             continue
         extension = {
             "report": ".html",
+            "matrix": ".txt",
             "labels": ".tif",
             "mixed": ".gpkg",
             "output": ".tif" if raster_output else ".gpkg",
@@ -392,6 +393,14 @@ def write_report(result, p, mapping=None):
         "Random holdouts can be optimistic for nearby samples; choose spatial or grouped validation "
         "when assessing transfer to new areas. Probability margins are not accuracy estimates.</p>",
     ]
+    contents += ["<h2>Confusion matrix</h2>"]
+    if result.confusion_matrix is not None:
+        contents += [
+            "<p>Rows are observed test classes; columns are predicted classes. Cells are sample counts.</p>",
+            matrix_table(result.confusion_matrix, result.classes).to_html(escape=True),
+        ]
+    else:
+        contents += ["<p>No confusion matrix: no test data or holdout was used.</p>"]
     contents += [
         "<h2>Class coverage</h2>",
         split.class_counts.to_html(escape=True),
@@ -438,6 +447,101 @@ def write_report(result, p, mapping=None):
     contents.append("</body></html>")
     with staged_output(p["report"], ".html") as temporary:
         temporary.write_text("\n".join(contents), encoding="utf-8")
+
+
+def matrix_table(matrix, classes):
+    import pandas as pd
+
+    table = pd.DataFrame(matrix, index=classes, columns=classes)
+    table.index.name = "Observed / Predicted"
+    return table
+
+
+def confusion_table(observed, predicted):
+    """Return counts with observed classes in rows and predictions in columns."""
+    from sklearn.metrics import confusion_matrix
+    from sklearn.utils.multiclass import unique_labels
+
+    classes = unique_labels(observed, predicted)
+    return matrix_table(confusion_matrix(observed, predicted, labels=classes), classes)
+
+
+def raster_confusion_matrix(p):
+    import numpy as np
+    import rasterio
+
+    validate_destinations(p, ("matrix",))
+    with rasterio.open(p["raster"]) as raster:
+        if raster.count != 1 or raster.crs is None:
+            raise ValueError("Choose a single-band classified raster with a saved CRS.")
+        if np.issubdtype(np.dtype(raster.dtypes[0]), np.complexfloating):
+            raise ValueError("Classified raster values must be integer class codes.")
+        if raster.scales[0] != 1 or raster.offsets[0] != 0:
+            raise ValueError(
+                "Apply raster scale/offset values before evaluating class codes."
+            )
+        points = vector_source(p["points"], kind="Point", crs=raster.crs)
+        field = p["label_field"]
+        if field not in points or points[field].isna().any():
+            raise ValueError("Choose a test class field with a label for every point.")
+        rows, cols = rasterio.transform.rowcol(
+            raster.transform, points.geometry.x, points.geometry.y
+        )
+        rows, cols = np.asarray(rows), np.asarray(cols)
+        if (
+            (rows < 0) | (rows >= raster.height) | (cols < 0) | (cols >= raster.width)
+        ).any():
+            raise ValueError(
+                "Test points fall outside the classified raster. Review those points."
+            )
+        # Read only sampled cells, so map-wide accuracy checks need little raster memory.
+        sampled = np.ma.concatenate(
+            list(
+                raster.sample(
+                    zip(points.geometry.x, points.geometry.y), indexes=1, masked=True
+                )
+            )
+        )
+        if np.ma.getmaskarray(sampled).any() or not np.isfinite(sampled.data).all():
+            raise ValueError(
+                "Test points fall on NoData or invalid raster pixels. Review those points."
+            )
+        if not (sampled.data == np.floor(sampled.data)).all():
+            raise ValueError("Classified raster values must be integer class codes.")
+        predicted = [int(value) for value in sampled.data]
+        mapping_text = raster.tags().get("class_mapping")
+        if mapping_text:
+            try:
+                mapping = json.loads(mapping_text)
+                predicted = [mapping[str(code)] for code in predicted]
+            except (ValueError, TypeError, KeyError) as exc:
+                raise ValueError(
+                    "The raster class_mapping tag is invalid or missing a sampled class code."
+                ) from exc
+        observed = points[field].tolist()
+        if any(isinstance(v, str) for v in observed + predicted) and not all(
+            isinstance(v, str) for v in observed + predicted
+        ):
+            raise ValueError(
+                "Test labels and raster classes must use the same type. Use original labels for "
+                "OBIA rasters with a class_mapping tag, or numeric raster codes for other rasters."
+            )
+        # Retain one observation per pixel, as in OBIA's pixel classifier.
+        unique, keep = {}, []
+        for i, cell in enumerate(zip(rows.tolist(), cols.tolist())):
+            if cell in unique and unique[cell] != observed[i]:
+                raise ValueError(
+                    "Conflicting test labels select the same raster pixel."
+                )
+            if cell not in unique:
+                unique[cell] = observed[i]
+                keep.append(i)
+        table = confusion_table(
+            [observed[i] for i in keep], [predicted[i] for i in keep]
+        )
+    with staged_output(p["matrix"], ".txt") as temporary:
+        table.to_csv(temporary, sep="\t", encoding="utf-8", lineterminator="\n")
+    return {"matrix": p["matrix"], "samples": len(keep), "classes": len(table)}
 
 
 def classify_objects(p):
@@ -662,6 +766,7 @@ def dispatch(operation, payload):
         "label": label_objects,
         "classify_objects": classify_objects,
         "classify_pixels": classify_pixels,
+        "confusion_matrix": raster_confusion_matrix,
         "selftest": selftest,
     }
     if operation not in operations:

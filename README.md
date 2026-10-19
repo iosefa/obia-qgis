@@ -5,14 +5,16 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.1 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.2 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Obtain `obia_qgis-0.1.1.zip`, or build it with `scripts/package_plugin.sh`
+1. Download [obia_qgis-0.1.2.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.2/obia_qgis-0.1.2.zip)
+   from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest),
+   or build it with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).
 2. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**,
    select the ZIP, and enable **OBIA**.
@@ -115,6 +117,7 @@ All algorithm IDs have the prefix `obia:`. Help links open the bundled
 | Label objects from points | `labelobjects` | Training objects, optional conflicting objects |
 | Classify objects | `classifyobjects` | Classified objects and HTML report |
 | Classify pixels | `classifypixels` | Class-code GeoTIFF and HTML report |
+| Confusion matrix from raster | `confusionmatrix` | Tab-separated text matrix |
 | Check OBIA dependencies | `checkdependencies` | HTML status report and `READY` result |
 
 Classifiers are Random Forest, Extra Trees, and XGBoost. Both classification
@@ -135,6 +138,20 @@ preprocessing, and the model is not automatically refitted on held-out data.
 Random holdouts may be optimistic for neighboring samples. Reports are not an
 independent map accuracy assessment. Prediction margins are probability gaps,
 not calibrated accuracy estimates.
+
+Classification reports include a **confusion matrix** whenever test data or a
+holdout is used. Rows are observed classes, columns are predicted classes, and
+cells contain sample counts. A model fitted on all samples without test data
+has no validation matrix.
+
+To check an existing map, run **Confusion matrix from raster**. Select a
+single-band classified raster, labelled test points, their class field, and a
+`.txt` output file. The file is UTF-8, tab separated, with observed class labels
+in its first column and predicted class labels across the header. OBIA raster
+class mappings are read automatically; for other rasters, use numeric class
+codes in the test field. Points are reprojected to the raster CRS. Outside or
+NoData points and conflicting labels in the same pixel stop processing;
+matching duplicates count once. Only sampled raster cells are read.
 
 ## Inputs and practical limits
 

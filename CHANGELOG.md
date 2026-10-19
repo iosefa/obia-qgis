@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2
+
+- Added labelled confusion matrices to object and pixel classification reports
+  for supplied-test and holdout validation.
+- Added **Confusion matrix from raster**, a simple classified-raster/test-points
+  dialog that exports a UTF-8 tab-separated `.txt` matrix. Reads OBIA class
+  mappings, reprojects points, and samples cells without loading the whole raster.
+- Published installable plugin ZIPs as GitHub release assets.
+
 ## 0.1.1
 
 - Added optional labelled test layers and test class fields to object and pixel

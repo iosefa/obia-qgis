@@ -98,6 +98,19 @@ Configured CI is not evidence of a successful run.
 
 ## Local release record
 
+Verification for 0.1.2 on 2026-10-19, macOS Apple Silicon:
+
+| Check | Result |
+| --- | --- |
+| Scientific engine suite | All 19 tests passed |
+| Packaged QGIS 3.40.3 / Qt 5 and 4.2.3 / Qt 6 | 60 tests each, OK; 19 expected skips (17 separately run scientific tests, 2 Windows-only tests) |
+| Confusion matrix dialog | Rendered and visually reviewed |
+
+Matrix checks use known asymmetric counts to verify row/column orientation,
+UTF-8 labels and raster class mappings, numeric codes, unseen observed classes,
+point reprojection, duplicate handling, and rejection of outside/NoData points.
+Classification HTML matrices are compared with independently calculated counts.
+
 Verification for 0.1.1 on 2026-10-19, macOS Apple Silicon:
 
 | Check | Result |

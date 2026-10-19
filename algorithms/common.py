@@ -189,7 +189,7 @@ class Algorithm(QgsProcessingAlgorithm):
                     inputs.add(Path(layer.source().split("|")[0]).resolve())
         outputs = [
             Path(payload[key]).resolve()
-            for key in ("output", "labels", "mixed", "report")
+            for key in ("output", "labels", "mixed", "report", "matrix")
             if payload.get(key)
         ]
         if inputs.intersection(outputs):
