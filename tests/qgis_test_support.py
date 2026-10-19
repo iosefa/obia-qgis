@@ -8,6 +8,7 @@ also leaves QGIS GUI registries pointing to objects from the previous instance.
 """
 
 import atexit
+import gc
 import tempfile
 
 
@@ -30,7 +31,17 @@ def qgis_application():
 def _shutdown_qgis():
     global _application, _profile
     if _application is not None:
+        from qgis.core import QgsProject
+        from qgis.PyQt import sip
+        from qgis.PyQt.QtCore import QCoreApplication, QEvent
+
+        # Destroy layers and deferred Qt objects while their providers still exist.
+        QgsProject.instance().clear()
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         _application.exitQgis()
+        # Do not defer native QApplication destruction to Python finalization.
+        sip.delete(_application)
         _application = None
     if _profile is not None:
         _profile.cleanup()

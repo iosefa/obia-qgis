@@ -13,10 +13,10 @@ are installed.
 | `features.extract_features` | Band statistics, optional p10/p90, NDVI, all shape measurements, optional default GLCM features |
 | Other spectral indices / custom texture angles, bounds, entropy radii | Python configuration; plugin exposes common settings only |
 | `utils.label_segments` | Point classes, mixed-object output; resets labels to handle v0.2.0 no-intersection and stale-label cases |
-| `classification.classify` | Random Forest, Extra Trees, XGBoost; explicit numeric fields and holdout report |
+| `classification.classify` | Random Forest, Extra Trees, XGBoost; explicit numeric fields and supplied-test or holdout report |
 | `sample_pixels`, `classify_pixels`, `ClassifiedRaster.write_geotiff` | Pixel classification with class mapping and preserved georeferencing |
-| `split_objects` | Random, grouped, and spatial holdouts with optional buffer |
-| `cross_validation_splits`, explicit partitions | Python workflow; no cross-validation UI |
+| `split_objects` | Explicit partitions for supplied test layers; random, grouped, and spatial holdouts with optional buffer |
+| `cross_validation_splits` | Python workflow; no cross-validation UI |
 | Other estimators, custom pipelines, spatial class restrictions, reusable models | Python workflow |
 | SHAP explanations | Optional extra omitted |
 | Tiling/image enhancement/cropping helpers | Use QGIS raster tools for preparation; Python for OBIA tile workflows |

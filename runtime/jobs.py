@@ -103,7 +103,7 @@ def vector_source(path, kind="Polygon", crs=None, allow_empty=False):
 def validate_destinations(payload, names, raster_output=False):
     inputs = {
         Path(payload[k]).resolve()
-        for k in ("raster", "mask", "objects", "points", "training")
+        for k in ("raster", "mask", "objects", "points", "training", "test")
         if payload.get(k)
     }
     raw = [Path(payload[k]) for k in names if payload.get(k)]
@@ -327,17 +327,57 @@ def partition(data, p):
     )
 
 
+def supplied_test_partition(training, test, columns):
+    """Use every training row and only supplied test rows in OBIA's explicit split."""
+    import pandas as pd
+    from obia.classification import split_objects
+
+    for name, data in (("Training", training), ("Test", test)):
+        missing = [column for column in columns if column not in data]
+        if missing:
+            raise ValueError(f"{name} data is missing predictor fields: {missing}.")
+    if test.feature_class.isna().any():
+        raise ValueError("Test labels cannot be missing; label every test sample.")
+    unknown = test.loc[
+        ~test.feature_class.isin(training.feature_class), "feature_class"
+    ]
+    if len(unknown):
+        raise ValueError(
+            f"Test classes must occur in training: {unknown.unique().tolist()}."
+        )
+    # Both polygon geometries and sampled pixel centres identify reused samples.
+    if set(training.geometry.normalize().to_wkb()).intersection(
+        test.geometry.normalize().to_wkb()
+    ):
+        raise ValueError(
+            "Training and test data must not contain the same objects or pixels."
+        )
+    fields = [*columns, "feature_class", "geometry"]
+    combined = pd.concat([training[fields], test[fields]], ignore_index=True)
+    split = split_objects(
+        combined,
+        method="explicit",
+        train_indices=list(range(len(training))),
+        test_indices=list(range(len(training), len(combined))),
+        stratify=False,  # A supplied test set need not contain every training class.
+    )
+    return combined, split
+
+
 def write_report(result, p, mapping=None):
     if not p.get("report"):
         return
     split = result.split
+    supplied = bool(p.get("test"))
+    validation = "supplied test data" if supplied else p.get("validation", "random")
+    test_kind = "supplied test" if supplied else "holdout"
     contents = [
         "<!doctype html><html><meta charset='utf-8'><title>OBIA classification</title>",
         "<body><h1>OBIA 0.2.0 classification</h1>",
         "<p>"
         + escape(
-            f"Classifier: {p.get('method', 'rf')}. Validation: {p.get('validation', 'random')}. "
-            f"Training samples: {len(split.train_indices)}; holdout samples: {len(split.test_indices)}."
+            f"Classifier: {p.get('method', 'rf')}. Validation: {validation}. "
+            f"Training samples: {len(split.train_indices)}; {test_kind} samples: {len(split.test_indices)}."
         )
         + "</p>",
         "<pre>"
@@ -345,7 +385,10 @@ def write_report(result, p, mapping=None):
             result.report or "Fitted all samples. No held-out accuracy was calculated."
         )
         + "</pre>",
-        "<p>Reports describe the holdout only. The model is not refitted on held-out samples. "
+        "<p>All training samples were used to fit the model. Reports describe only the supplied "
+        "test data, which was not used for training. Holdout settings were ignored.</p>"
+        if supplied
+        else "<p>Reports describe the holdout only. The model is not refitted on held-out samples. "
         "Random holdouts can be optimistic for nearby samples; choose spatial or grouped validation "
         "when assessing transfer to new areas. Probability margins are not accuracy estimates.</p>",
     ]
@@ -362,13 +405,21 @@ def write_report(result, p, mapping=None):
                         "trees",
                         "max_depth",
                         "seed",
-                        "test_fraction",
-                        "validation",
-                        "group_field",
-                        "block_size",
-                        "buffer",
+                        "label_field",
+                        "test_label_field",
                         "features",
                         "bands",
+                    )
+                    + (
+                        ()
+                        if supplied
+                        else (
+                            "test_fraction",
+                            "validation",
+                            "group_field",
+                            "block_size",
+                            "buffer",
+                        )
                     )
                     if key in p
                 },
@@ -402,6 +453,7 @@ def classify_objects(p):
     columns = p.get("features")
     forbidden = {
         label,
+        p.get("test_label_field") if p.get("test") else None,
         "feature_class",
         "class",
         "segment_id",
@@ -414,7 +466,15 @@ def classify_objects(p):
         raise ValueError(
             "Select numeric predictor fields; exclude class labels, IDs, grouping fields, and previous predictions."
         )
-    split = partition(training, p)
+    if p.get("test"):
+        test = vector_source(p["test"], crs=objects.crs)
+        test_label = p.get("test_label_field") or label
+        if test_label not in test:
+            raise ValueError("The test class field does not exist.")
+        test["feature_class"] = test[test_label]
+        training, split = supplied_test_partition(training, test, columns)
+    else:
+        split = partition(training, p)
     progress(25, "Training classifier and predicting objects")
     result = classify(
         objects,
@@ -446,7 +506,19 @@ def classify_pixels(p):
             mask=mask_source(p.get("mask"), image),
         )
         samples = sample_pixels(image, points, **options)
-        split = partition(samples, p)
+        if p.get("test"):
+            test = vector_source(p["test"], kind="Point")
+            test_options = dict(
+                options, label_column=p.get("test_label_field") or p["label_field"]
+            )
+            test_samples = sample_pixels(image, test, **test_options)
+            points, split = supplied_test_partition(
+                samples, test_samples, [f"b{band}" for band in selected]
+            )
+            # The combined table contains already sampled, distinct pixel centres.
+            options["label_column"] = "feature_class"
+        else:
+            split = partition(samples, p)
         progress(25, "Training classifier and predicting pixels")
         result = classify(
             image,

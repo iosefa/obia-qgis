@@ -102,7 +102,7 @@ class Algorithm(QgsProcessingAlgorithm):
             True,
         )
 
-    def vector_input(self, name, label, points=False):
+    def vector_input(self, name, label, points=False, optional=False):
         self.add(
             QgsProcessingParameterFeatureSource(
                 name,
@@ -112,6 +112,7 @@ class Algorithm(QgsProcessingAlgorithm):
                     if points
                     else QgsProcessing.TypeVectorPolygon
                 ],
+                optional=optional,
             )
         )
 
@@ -181,7 +182,7 @@ class Algorithm(QgsProcessingAlgorithm):
     def check_outputs(self, parameters, context, payload):
         # Staging changes vector paths: also protect their original source files.
         inputs = set()
-        for name in ("OBJECTS", "TRAINING", "POINTS"):
+        for name in ("OBJECTS", "TRAINING", "POINTS", "TEST"):
             if self.parameterDefinition(name) is not None:
                 layer = self.parameterAsVectorLayer(parameters, name, context)
                 if layer is not None:

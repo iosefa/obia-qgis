@@ -60,6 +60,7 @@ jobs:
         shell: bash -el {0}
     env:
       QT_QPA_PLATFORM: offscreen
+      PYTHONFAULTHANDLER: "1"
       OBIA_TEST_QGIS: "1"
     steps:
       - uses: actions/checkout@v4

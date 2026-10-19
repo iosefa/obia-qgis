@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.0 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.1 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select <code>obia_qgis-0.1.0.zip</code> and enable OBIA.</li>
+<ol><li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select <code>obia_qgis-0.1.1.zip</code> and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
 <p>Setup supplies a private Python and scientific stack for Windows x64, Linux x64, and macOS Intel/Apple Silicon.
@@ -90,17 +90,24 @@ the training and prediction layers. Exclude IDs, labels, grouping fields, and pr
 <p>Choose the number of trees and holdout fraction. Advanced settings include maximum depth and random seed.
 A depth of zero means unlimited for Random Forest/Extra Trees and depth 6 for XGBoost. Computation uses one estimator thread per job.</p>
 <h3>Validation</h3>
-<p>The default reserves 20% of samples with a stratified random split. Set the fraction to 0 to train on all samples without held-out accuracy.
+<p>Optionally supply <b>Labelled test objects</b>. The model then uses <b>all training data</b>, and the HTML report evaluates only
+the supplied test objects. Holdout settings are ignored. Test objects must have the selected numeric predictor fields.
+Set <b>Test class field</b> if its name differs from the training class field; leave it empty to use the same field name.
+Test classes must occur in training, but a test set may contain a subset of the classes. Training and test objects must be distinct.</p>
+<p>Without test data, the default reserves 20% of samples with a stratified random split. Set the fraction to 0 to train on all samples without held-out accuracy.
 Advanced grouped validation keeps each site/group together; select its group field. Spatial validation holds out square blocks in projected CRS units.
 The optional buffer excludes training geometries near test geometries (whole groups/blocks when applicable).
 Every class must remain in training; small or poorly distributed datasets can fail this requirement.</p>
-<p>The HTML report describes holdout predictions only. OBIA does not refit on held-out samples afterward.
+<p>For holdout validation, the HTML report describes holdout predictions only. OBIA does not refit on held-out samples afterward.
 Random splits may overstate performance for neighboring samples; choose grouped/spatial validation to assess transfer to new areas.</p>
 
 <h2 id="classifypixels">Classify pixels</h2>
 <p><code>obia:classifypixels</code> learns from pixels containing labelled points and predicts every valid pixel using the selected bands.
 Points are reprojected to the raster CRS. Outside/NoData points and conflicting labels in a single pixel stop processing;
 matching duplicates count once. The same model and validation choices are available as for objects.</p>
+<p>Optional <b>Labelled test points</b> are sampled from the same raster, using the same bands and mask. They must select different
+pixels from the training points. With test points, all training pixels fit the model and only the supplied test pixels are evaluated.
+Duplicate points within each set count once per pixel. Without test points, the current holdout settings apply.</p>
 <p>The output preserves the raster CRS, dimensions, and transform. NoData is <code>0</code>; class codes are <code>1..K</code>,
 which may differ from numeric input labels. Read the mapping in the HTML report or GeoTIFF <code>class_mapping</code> tag before styling.</p>
 

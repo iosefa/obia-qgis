@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1
+
+- Added optional labelled test layers and test class fields to object and pixel
+  classification. Supplied test data trains on all training samples and evaluates
+  only the test data; omitting it preserves the existing holdout workflow.
+- Reports identify supplied-test validation, sample counts, and class coverage.
+- Reject reused training/test objects or pixels and protect test input files.
+- Fixed the QGIS CI environment-file path and preserved checksummed manifest
+  line endings during Windows checkout.
+- Corrected Windows test assertions for short path aliases and QGIS test layer
+  cleanup before GDAL shutdown.
+
 ## 0.1.0
 
 - Bundled the unchanged OBIA v0.2.0 release and its MIT notice.

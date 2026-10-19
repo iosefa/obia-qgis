@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(os.environ.get("OBIA_PLUGIN_PATH", Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(ROOT))
@@ -252,6 +253,182 @@ class ScientificTests(unittest.TestCase):
             )
             self.assertEqual(set(self.np.unique(src.read(1))), {1, 2})
         self.assertIn("No held-out accuracy", report.read_text())
+
+    def supplied_test_data(self, pixels=False):
+        data = self.gpd.read_file(self.points() if pixels else self.training())
+        label = "cover" if pixels else "feature_class"
+        test = data.groupby(label, sort=False).head(2).copy()
+        training = data.drop(test.index).copy()
+        training_path, test_path = self.d / "train-subset.gpkg", self.d / "test.gpkg"
+        training.to_file(training_path, index=False)
+        test = test.rename(columns={label: "observed"})
+        test.to_file(test_path, index=False)
+        payload = dict(
+            label_field=label,
+            test=str(test_path),
+            test_label_field="observed",
+            trees=8,
+            # These holdout settings must have no effect when test data is given.
+            test_fraction=0.9,
+            validation="grouped",
+            group_field="absent",
+            buffer=100000,
+            report=str(self.d / "independent.html"),
+        )
+        if pixels:
+            payload.update(
+                raster=str(self.raster),
+                points=str(training_path),
+                bands=[2],
+                output=str(self.d / "independent.tif"),
+            )
+        else:
+            payload.update(
+                objects=str(self.objects),
+                training=str(training_path),
+                features=["b0_mean", "b1_mean"],
+                output=str(self.d / "independent.gpkg"),
+            )
+        return payload, training, test
+
+    def test_supplied_test_data_trains_all_and_reports_only_test_predictions(self):
+        from sklearn.metrics import classification_report
+        from obia.classification import sample_pixels
+
+        for pixels in (False, True):
+            for method in ("rf", "extra_trees", "xgboost"):
+                with self.subTest(pixels=pixels, method=method):
+                    payload, training, test = self.supplied_test_data(pixels)
+                    payload["method"] = method
+                    run = (
+                        self.jobs.classify_pixels
+                        if pixels
+                        else self.jobs.classify_objects
+                    )
+                    if pixels:
+                        with self.jobs.image_source(self.raster) as image:
+                            test = sample_pixels(
+                                image, test, bands=[1], label_column="observed"
+                            )
+                    with patch.object(
+                        self.jobs, "write_report", wraps=self.jobs.write_report
+                    ) as report:
+                        run(payload)
+                    result = report.call_args.args[0]
+                    self.assertEqual(len(result.split.train_indices), len(training))
+                    self.assertEqual(len(result.split.test_indices), len(test))
+                    self.assertEqual(len(result.split.excluded_indices), 0)
+                    expected = classification_report(
+                        test.observed,
+                        result.model.predict(test[list(result.feature_columns)]),
+                        labels=result.classes,
+                        zero_division=0,
+                    )
+                    self.assertEqual(result.report, expected)
+                    text = Path(payload["report"]).read_text()
+                    self.assertIn(
+                        f"Training samples: {len(training)}; supplied test samples: {len(test)}",
+                        text,
+                    )
+                    self.assertIn("Holdout settings were ignored", text)
+                    # A supplied test set must produce the same fitted model as training
+                    # on these training data alone. Changing test labels must not train it.
+                    baseline = dict(
+                        payload,
+                        test=None,
+                        test_fraction=0,
+                        validation="random",
+                        group_field=None,
+                        buffer=0,
+                    )
+                    with patch.object(
+                        self.jobs, "write_report", wraps=self.jobs.write_report
+                    ) as report:
+                        run(baseline)
+                    all_training = report.call_args.args[0]
+                    features = test[list(result.feature_columns)]
+                    self.np.testing.assert_array_equal(
+                        result.model.predict_proba(features),
+                        all_training.model.predict_proba(features),
+                    )
+                    test = self.gpd.read_file(payload["test"])
+                    test["observed"] = test.observed.map(
+                        {"forest": "water", "water": "forest"}
+                    )
+                    test.to_file(payload["test"], index=False)
+                    with patch.object(
+                        self.jobs, "write_report", wraps=self.jobs.write_report
+                    ) as report:
+                        run(payload)
+                    changed = report.call_args.args[0]
+                    self.assertNotEqual(result.report, changed.report)
+                    self.np.testing.assert_array_equal(
+                        result.model.predict_proba(features),
+                        changed.model.predict_proba(features),
+                    )
+
+    def test_supplied_test_data_can_use_training_field_and_a_subset_of_classes(self):
+        for pixels in (False, True):
+            with self.subTest(pixels=pixels):
+                p, _, test = self.supplied_test_data(pixels)
+                test = test[test.observed == "forest"].rename(
+                    columns={"observed": p["label_field"]}
+                )
+                test.to_file(p["test"], index=False)
+                p.pop("test_label_field")
+                run = (
+                    self.jobs.classify_pixels if pixels else self.jobs.classify_objects
+                )
+                run(p)
+                self.assertIn("supplied test samples: 2", Path(p["report"]).read_text())
+
+    def test_invalid_supplied_test_data_preserves_outputs(self):
+        for pixels in (False, True):
+            with self.subTest(pixels=pixels):
+                p, training, test = self.supplied_test_data(pixels)
+                run = (
+                    self.jobs.classify_pixels if pixels else self.jobs.classify_objects
+                )
+                Path(p["output"]).write_bytes(b"existing output")
+                variants = [
+                    (test.assign(observed="unseen"), "occur in training"),
+                    (test.assign(observed=None), "missing"),
+                    (
+                        training.rename(columns={p["label_field"]: "observed"}),
+                        "same objects or pixels",
+                    ),
+                    (test.drop(columns="observed"), "class field|column"),
+                ]
+                if not pixels:
+                    variants.append((test.drop(columns="b0_mean"), "missing predictor"))
+                for invalid, message in variants:
+                    invalid.to_file(p["test"], index=False)
+                    with self.assertRaisesRegex(ValueError, message):
+                        run(p)
+                    self.assertEqual(Path(p["output"]).read_bytes(), b"existing output")
+                before = Path(p["test"]).read_bytes()
+                with self.assertRaisesRegex(ValueError, "separate"):
+                    run(dict(p, output=p["test"]))
+                self.assertEqual(Path(p["test"]).read_bytes(), before)
+
+    def test_pixel_default_still_reserves_a_holdout(self):
+        with patch.object(
+            self.jobs, "write_report", wraps=self.jobs.write_report
+        ) as report:
+            self.jobs.classify_pixels(
+                dict(
+                    raster=str(self.raster),
+                    points=str(self.points()),
+                    label_field="cover",
+                    trees=5,
+                    output=str(self.d / "holdout.tif"),
+                    report=str(self.d / "holdout.html"),
+                )
+            )
+        split = report.call_args.args[0].split
+        self.assertEqual(len(split.train_indices), 12)
+        self.assertEqual(len(split.test_indices), 4)
+        self.assertIn("holdout samples: 4", (self.d / "holdout.html").read_text())
 
     def test_mask_misalignment_and_band_errors_preserve_output(self):
         output = self.d / "preserved.gpkg"

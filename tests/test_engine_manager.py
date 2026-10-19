@@ -268,12 +268,14 @@ class EngineManagerTests(unittest.TestCase):
             self.assertEqual(config.suffix, ".yaml")
             prefix = Path(command[command.index("--prefix") + 1])
             self.assertTrue((prefix / "conda-meta" / "history").is_file())
-            self.assertEqual(
-                json.loads(config.read_text())["pkgs_dirs"],
-                [str(self.root / "s")],
-            )
-            self.assertEqual(
-                command[command.index("--root-prefix") + 1], self.root / "s"
+            caches = json.loads(config.read_text())["pkgs_dirs"]
+            self.assertEqual(len(caches), 1)
+            # Windows may shorten existing ancestors to their 8.3 aliases.
+            self.assertTrue(Path(caches[0]).samefile(self.root / "s"))
+            self.assertTrue(
+                Path(command[command.index("--root-prefix") + 1]).samefile(
+                    self.root / "s"
+                )
             )
             explicit = Path(command[command.index("--file") + 1]).read_text()
             self.assertEqual(
@@ -370,7 +372,7 @@ class EngineManagerTests(unittest.TestCase):
         remove = manager._remove_tree
 
         def partial_removal(path):
-            if Path(path) == self.root / "s":
+            if Path(path).resolve() == (self.root / "s").resolve():
                 (Path(path) / manager.MARKER).unlink()
                 raise PermissionError("cache file is locked")
             remove(path)

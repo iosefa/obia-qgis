@@ -74,6 +74,10 @@ extracted ZIP's `obia_qgis` directory to test the shipped artifact. The tests
 exercise all four segmentation methods, features/NDVI/texture/shape, labelling,
 both classifier outputs, real dependency self-tests, input protection, selected
 memory-layer features, pending edits, and loading without scientific imports.
+Both classifiers also exercise supplied test layers, alternate test class fields,
+and holdout overrides. The scientific tests compare supplied-test models with
+models fitted on all training data alone, independently calculate test metrics,
+and change test labels to verify that those labels do not affect model fitting.
 
 ## Windows package-path audit
 
@@ -93,6 +97,21 @@ the engine on macOS/Linux and the shipped plugin against QGIS 3.40 and 4.2.
 Configured CI is not evidence of a successful run.
 
 ## Local release record
+
+Verification for 0.1.1 on 2026-10-19, macOS Apple Silicon:
+
+| Check | Result |
+| --- | --- |
+| Standalone installer suite | 34 tests, OK; 2 Windows-only filesystem tests skipped |
+| Scientific engine suite | All 17 tests passed, including supplied-test validation for all three classifiers |
+| Packaged QGIS 3.40.3 / Qt 5 and 4.2.3 / Qt 6 | 58 tests each, OK; 17 expected skips (15 separately run scientific tests, 2 Windows-only tests) |
+| Classification Processing panels | Both rendered and visually reviewed with optional test inputs |
+| Manifest integrity | Simulated Windows checkout filtering retains the audited SHA256 |
+
+CI fixes preserve manifest LF bytes, use a workspace-relative conda environment
+file, compare Windows path aliases by file identity, and explicitly destroy test
+layers before shutting down QGIS/GDAL. See the repository's Actions runs for the
+Windows, Linux, and macOS results; local checks alone do not establish those.
 
 Verification for 0.1.0 on 2026-10-19, macOS Apple Silicon:
 

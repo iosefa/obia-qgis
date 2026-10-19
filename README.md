@@ -5,14 +5,14 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.0 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.1 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Obtain `obia_qgis-0.1.0.zip`, or build it with `scripts/package_plugin.sh`
+1. Obtain `obia_qgis-0.1.1.zip`, or build it with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).
 2. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**,
    select the ZIP, and enable **OBIA**.
@@ -117,8 +117,18 @@ All algorithm IDs have the prefix `obia:`. Help links open the bundled
 | Classify pixels | `classifypixels` | Class-code GeoTIFF and HTML report |
 | Check OBIA dependencies | `checkdependencies` | HTML status report and `READY` result |
 
-Classifiers are Random Forest, Extra Trees, and XGBoost. Advanced parameters
-support grouped and spatial holdouts and distance buffers. The default is a
+Classifiers are Random Forest, Extra Trees, and XGBoost. Both classification
+tools accept an optional **Labelled test objects/points** layer. When supplied,
+the model uses **all training data** and the report evaluates only the test
+data. Holdout settings are ignored. Select **Test class field** if its name
+differs from the training class field. Test objects need the same predictor
+fields; test points are sampled from the input raster. Test labels must occur
+in training, but the test set need not contain every class. Training and test
+sets must use distinct objects/pixels. Duplicate points within either set still
+count once per pixel.
+
+Without a test layer, advanced parameters support grouped and spatial holdouts
+and distance buffers. The default is a
 20% stratified random holdout; a fraction of `0` fits all samples without an
 accuracy report. Holdout predictions are evaluated using only training-fitted
 preprocessing, and the model is not automatically refitted on held-out data.
