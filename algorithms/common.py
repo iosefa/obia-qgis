@@ -102,16 +102,14 @@ class Algorithm(QgsProcessingAlgorithm):
             True,
         )
 
-    def vector_input(self, name, label, points=False, optional=False):
+    def vector_input(self, name, label, labels=False, optional=False):
         self.add(
             QgsProcessingParameterFeatureSource(
                 name,
                 label,
-                types=[
-                    QgsProcessing.TypeVectorPoint
-                    if points
-                    else QgsProcessing.TypeVectorPolygon
-                ],
+                types=[QgsProcessing.TypeVectorPolygon, QgsProcessing.TypeVectorPoint]
+                if labels
+                else [QgsProcessing.TypeVectorPolygon],
                 optional=optional,
             )
         )

@@ -448,6 +448,258 @@ class ScientificTests(unittest.TestCase):
         self.assertEqual(len(split.test_indices), 4)
         self.assertIn("holdout samples: 4", (self.d / "holdout.html").read_text())
 
+    def polygon_labels(self, points):
+        """Small polygons around points, all within their original raster cells."""
+        from rasterio.transform import rowcol, xy
+
+        polygons = points.copy()
+        rows, cols = rowcol(self.transform, points.geometry.x, points.geometry.y)
+        xs, ys = xy(self.transform, rows, cols)
+        polygons.geometry = self.gpd.points_from_xy(xs, ys, crs=points.crs)
+        polygons.geometry = polygons.geometry.buffer(0.2, cap_style=3)
+        return polygons
+
+    def test_polygon_pixel_intersections_holes_multipart_reprojection_and_groups(self):
+        from affine import Affine
+        from obia.classification import sample_pixels
+        from shapely.affinity import affine_transform
+        from shapely.geometry import MultiPolygon, Polygon, box
+
+        shapes = [
+            Polygon(
+                box(0.1, 0.1, 5.9, 5.9).exterior.coords,
+                [box(1.1, 1.1, 4.9, 4.9).exterior.coords],
+            ),
+            MultiPolygon([box(20.1, 2.1, 20.2, 2.2), box(23.1, 4.1, 23.2, 4.2)]),
+            box(-1.2, 10.2, 0.2, 11.2),  # Clip to the raster, not the polygon centre.
+        ]
+        for transform in (self.transform, self.transform * Affine.rotation(17)):
+            with self.subTest(transform=transform):
+                with self.rasterio.open(self.raster, "r+") as raster:
+                    raster.transform = transform
+                geometries = [
+                    affine_transform(
+                        g,
+                        [
+                            transform.a,
+                            transform.b,
+                            transform.d,
+                            transform.e,
+                            transform.c,
+                            transform.f,
+                        ],
+                    )
+                    for g in shapes
+                ]
+                labels = self.gpd.GeoDataFrame(
+                    {
+                        "cover": ["forest", "water", "forest"],
+                        "site": [1, 2, 3],
+                        "segment_id": [1, 1, 1],
+                    },
+                    geometry=geometries,
+                    crs=32605,
+                )
+                path = self.d / "polygon labels.gpkg"
+                labels.to_crs(4326).to_file(path, index=False)
+                labels = self.jobs.vector_source(path, kind="Labels", crs=32605)
+                with self.jobs.image_source(self.raster) as image:
+                    points = self.jobs.raster_label_points(image.rasterio_obj, labels)
+                    sampled = sample_pixels(
+                        image, points, bands=[1], label_column="cover"
+                    )
+                expected = {}
+                for i, shape in enumerate(shapes):
+                    for row in range(32):
+                        for col in range(32):
+                            if shape.intersects(box(col, row, col + 1, row + 1)):
+                                expected[(row, col)] = (
+                                    labels.cover.iloc[i],
+                                    labels.site.iloc[i],
+                                )
+                actual = {
+                    (s.pixel_row, s.pixel_col): (s.feature_class, s.site)
+                    for s in sampled.itertuples()
+                }
+                self.assertEqual(actual, expected)
+                self.assertEqual(len(sampled), 36)
+                self.assertNotIn((2, 2), actual)  # A pixel wholly inside the hole.
+                self.assertIn((2, 20), actual)  # Polygon does not contain its centre.
+                self.np.testing.assert_array_equal(
+                    sampled.b1,
+                    (self.values * 2 + 10)[sampled.pixel_row, sampled.pixel_col],
+                )
+
+    def test_polygon_and_point_training_test_combinations_match_point_models(self):
+        for training_polygons, test_polygons in (
+            (True, True),
+            (True, False),
+            (False, True),
+        ):
+            with self.subTest(
+                training_polygons=training_polygons, test_polygons=test_polygons
+            ):
+                p, training, test = self.supplied_test_data(pixels=True)
+                with patch.object(
+                    self.jobs, "write_report", wraps=self.jobs.write_report
+                ) as report:
+                    self.jobs.classify_pixels(p)
+                baseline = report.call_args.args[0]
+                if training_polygons:
+                    self.polygon_labels(training).to_crs(4326).to_file(
+                        p["points"], index=False
+                    )
+                if test_polygons:
+                    self.polygon_labels(test).to_file(p["test"], index=False)
+                with patch.object(
+                    self.jobs, "write_report", wraps=self.jobs.write_report
+                ) as report:
+                    self.jobs.classify_pixels(p)
+                result = report.call_args.args[0]
+                self.assertEqual(len(result.split.train_indices), len(training))
+                self.assertEqual(len(result.split.test_indices), len(test))
+                self.np.testing.assert_array_equal(
+                    result.classified, baseline.classified
+                )
+                self.np.testing.assert_array_equal(
+                    result.confusion_matrix, baseline.confusion_matrix
+                )
+                self.assertEqual(result.report, baseline.report)
+
+    def test_polygon_holdout_uses_all_intersecting_pixels_and_preserves_groups(self):
+        from shapely.geometry import box
+
+        labels = self.gpd.GeoDataFrame(
+            {"cover": ["forest", "water"] * 4, "site": [0, 0, 1, 1, 2, 2, 3, 3]},
+            geometry=[
+                box(x, y, x + 1.4, y + 1.4)
+                for y in (170.2, 176.2, 182.2, 188.2)
+                for x in (102.2, 122.2)
+            ],
+            crs=32605,
+        )
+        path = self.d / "polygon holdout.gpkg"
+        labels.to_file(path, index=False)
+        p = dict(
+            raster=str(self.raster),
+            points=str(path),
+            label_field="cover",
+            trees=5,
+            output=str(self.d / "polygons.tif"),
+            report=str(self.d / "polygons.html"),
+        )
+        for options in (
+            {},
+            dict(validation="grouped", group_field="site", test_fraction=0.25),
+        ):
+            with patch.object(
+                self.jobs, "write_report", wraps=self.jobs.write_report
+            ) as report:
+                self.jobs.classify_pixels(dict(p, **options))
+            result = report.call_args.args[0]
+            self.assertEqual(len(result.samples), 32)  # Four pixels per polygon.
+            self.assertGreater(len(result.split.test_indices), 0)
+            self.assertEqual(
+                len(result.split.train_indices) + len(result.split.test_indices), 32
+            )
+            if options:
+                self.assertFalse(
+                    set(result.samples.iloc[result.split.train_indices].site)
+                    & set(result.samples.iloc[result.split.test_indices].site)
+                )
+
+    def test_invalid_polygon_samples_and_train_test_reuse_preserve_outputs(self):
+        import pandas as pd
+        from shapely.geometry import box
+
+        points = self.gpd.read_file(self.points())
+        labels = self.polygon_labels(points)
+        path = self.d / "polygons.gpkg"
+        output = self.d / "polygons.tif"
+        output.write_bytes(b"existing raster")
+        p = dict(
+            raster=str(self.raster),
+            points=str(path),
+            label_field="cover",
+            trees=5,
+            output=str(output),
+            test_fraction=0,
+        )
+        conflict = labels.iloc[[0]].copy()
+        conflict["cover"] = "conflict"
+        outside = labels.copy()
+        outside.loc[0, "geometry"] = box(999, 999, 1000, 1000)
+        invalid = labels.copy()
+        invalid.loc[0, "geometry"] = box(100.1, 199.1, 100.9, 199.9)
+        with self.rasterio.open(self.raster, "r+") as raster:
+            values = raster.read()
+            values[:, 0, 0] = -9999
+            raster.write(values)
+        for data, message in (
+            (pd.concat([labels, conflict], ignore_index=True), "Conflicting"),
+            (outside, "no intersecting"),
+            (invalid, "invalid pixels"),
+            (labels.assign(cover=None), "missing"),
+        ):
+            data.to_file(path, index=False)
+            with self.assertRaisesRegex(ValueError, message):
+                self.jobs.classify_pixels(p)
+            self.assertEqual(output.read_bytes(), b"existing raster")
+        labels.to_file(path, index=False)
+        points.to_file(self.d / "test points.gpkg", index=False)
+        with self.assertRaisesRegex(ValueError, "same objects or pixels"):
+            self.jobs.classify_pixels(dict(p, test=str(self.d / "test points.gpkg")))
+        self.assertEqual(output.read_bytes(), b"existing raster")
+        # Matching overlaps are retained once, as for duplicate points.
+        pd.concat([labels, labels], ignore_index=True).to_file(path, index=False)
+        with patch.object(
+            self.jobs, "write_report", wraps=self.jobs.write_report
+        ) as report:
+            self.jobs.classify_pixels(p)
+        self.assertEqual(len(report.call_args.args[0].samples), len(points))
+
+    def test_object_polygon_intersections_assign_labels_and_exclude_conflicts(self):
+        from shapely.geometry import box
+
+        objects = self.gpd.GeoDataFrame(
+            {
+                "segment_id": [1, 2, 3, 4],
+                "feature_class": ["stale"] * 4,
+                "class": [99] * 4,
+            },
+            geometry=[box(x, 170, x + 4, 174) for x in (100, 104, 108, 112)],
+            crs=32605,
+        )
+        objects.to_file(self.objects, index=False)
+        labels = self.gpd.GeoDataFrame(
+            {"cover": ["forest", "water"]},
+            # First touches objects 1 and 2; second spans objects 2 and 3.
+            geometry=[box(101, 171, 104, 172), box(107, 171, 110, 172)],
+            crs=32605,
+        )
+        path = self.d / "label polygons.gpkg"
+        labels.to_file(path, index=False)
+        p = dict(
+            objects=str(self.objects),
+            points=str(path),
+            label_field="cover",
+            output=str(self.d / "labelled.gpkg"),
+            mixed=str(self.d / "mixed.gpkg"),
+        )
+        result = self.jobs.label_objects(p)
+        self.assertEqual(result["conflicting"], 1)
+        data = self.gpd.read_file(p["output"])
+        self.assertEqual(
+            dict(zip(data.segment_id, data.feature_class)), {1: "forest", 3: "water"}
+        )
+        self.assertEqual(data["class"].tolist(), [99, 99])
+        self.assertEqual(self.gpd.read_file(p["mixed"]).segment_id.tolist(), [2])
+        labels["cover"] = "forest"
+        labels.to_crs(4326).to_file(path, index=False)
+        result = self.jobs.label_objects(p)
+        self.assertEqual(result["labelled"], 3)
+        self.assertEqual(result["conflicting"], 0)
+
     def confusion_inputs(self, mapped=False):
         from rasterio.transform import xy
         from shapely.geometry import Point
@@ -542,6 +794,33 @@ class ScientificTests(unittest.TestCase):
             self.assertEqual(output.read_bytes(), b"existing matrix")
         with self.assertRaisesRegex(ValueError, "separate"):
             self.jobs.raster_confusion_matrix(dict(p, matrix=p["raster"]))
+
+    def test_raster_confusion_matrix_samples_polygon_intersections_once(self):
+        import pandas as pd
+        from shapely.geometry import box
+
+        p, _ = self.confusion_inputs(mapped=True)
+        labels = self.gpd.GeoDataFrame(
+            {"truth": ["forêt", "water", "forêt"]},
+            geometry=[
+                box(100.1, 199.1, 102.9, 199.9),
+                box(100.1, 198.1, 101.9, 198.9),
+                box(100.2, 199.2, 100.8, 199.8),
+            ],
+            crs=32605,
+        )
+        labels.to_crs(4326).to_file(p["points"], index=False)
+        result = self.jobs.raster_confusion_matrix(p)
+        self.assertEqual(result["samples"], 5)
+        table = pd.read_csv(p["matrix"], sep="\t", index_col=0)
+        self.assertEqual(table.columns.tolist(), ["forêt", "water"])
+        self.np.testing.assert_array_equal(table.to_numpy(), [[1, 2], [1, 1]])
+        before = Path(p["matrix"]).read_bytes()
+        labels.loc[1, "geometry"] = box(100.1, 198.1, 102.9, 198.9)
+        labels.to_file(p["points"], index=False)
+        with self.assertRaisesRegex(ValueError, "NoData"):
+            self.jobs.raster_confusion_matrix(p)
+        self.assertEqual(Path(p["matrix"]).read_bytes(), before)
 
     def test_mask_misalignment_and_band_errors_preserve_output(self):
         output = self.d / "preserved.gpkg"

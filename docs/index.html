@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.3 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.4 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Download <code>obia_qgis-0.1.3.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
+<ol><li>Download <code>obia_qgis-0.1.4.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -39,7 +39,8 @@ Windows/Linux ARM engine builds are not included. Restart QGIS after updating th
 <ol><li>Load a local, georeferenced raster. Clip it to a small study area first.</li>
 <li>Run <b>SLIC segmentation</b>. Save object polygons and optionally matching segment IDs.</li>
 <li>Run <b>Extract object features</b> when you need more than the initial band means, standard deviations, and counts.</li>
-<li>Create representative labelled points with a class field. Run <b>Label objects from points</b> and inspect conflicting objects.</li>
+<li>Create labelled points or polygons with a class field. Run <b>Label objects from points or polygons</b> and inspect conflicting objects.
+Repeat with separate test labels if available.</li>
 <li>Run <b>Classify objects</b> with the full object layer, labelled training layer, and numeric predictor fields.</li></ol>
 <p class="note"><b>Bands:</b> selectors use one-based QGIS band numbers. OBIA field names use zero-based positions:
 <code>b0_mean</code> is the mean of QGIS band 1. Statistics use source pixel values, not renderer colors.</p>
@@ -78,11 +79,12 @@ Quantization bounds are fitted per band over the image and shared across objects
 <p>Raster masks, NoData, and polygon holes are respected. Outside polygons and undefined measurements retain NULL values.
 Feature masks limit samples without changing the polygon's shape. Inspect missing values before training.</p>
 
-<h2 id="labelobjects">Label objects from points</h2>
-<p><code>obia:labelobjects</code> assigns the chosen point class field to <code>feature_class</code> on each intersecting object.
-Points are reprojected to the object CRS. The main output contains only objects whose points agree on one class.
+<h2 id="labelobjects">Label objects from points or polygons</h2>
+<p><code>obia:labelobjects</code> assigns the chosen point or polygon class field to <code>feature_class</code> on each intersecting object.
+Labels are reprojected to the object CRS. The main output contains only objects whose intersecting labels agree on one class.
 Objects with conflicting classes are excluded and can be saved separately; unlabelled objects are excluded.
-Previous labels are reset. Points on boundaries can label more than one object; inspect their positions.</p>
+Previous labels are reset. Boundary intersections can label adjacent objects; inspect their positions.
+Use this tool with the training labels, then with any separate test labels, before object classification.</p>
 
 <h2 id="classifyobjects">Classify objects</h2>
 <p><code>obia:classifyobjects</code> fits Random Forest, Extra Trees, or XGBoost using selected numeric fields present in both
@@ -106,22 +108,27 @@ Random splits may overstate performance for neighboring samples; choose grouped/
 Cells contain sample counts. There is no validation matrix when fitting all samples without test data.</p>
 
 <h2 id="classifypixels">Classify pixels</h2>
-<p><code>obia:classifypixels</code> learns from pixels containing labelled points and predicts every valid pixel using the selected bands.
-Points are reprojected to the raster CRS. Outside/NoData points and conflicting labels in a single pixel stop processing;
-matching duplicates count once. The same model and validation choices are available as for objects.</p>
-<p>Optional <b>Labelled test points</b> are sampled from the same raster, using the same bands and mask. They must select different
-pixels from the training points. With test points, all training pixels fit the model and only the supplied test pixels are evaluated.
-Duplicate points within each set count once per pixel. Without test points, the current holdout settings apply.</p>
+<p><code>obia:classifypixels</code> learns from pixels containing labelled points or touched by labelled polygons and predicts every valid pixel using the selected bands.
+Labels are reprojected to the raster CRS. Polygon holes and multipart geometries are respected; only the overlap with the raster is sampled.
+Outside points, polygons with no intersecting pixels, NoData/masked pixels, and conflicting labels in a single pixel stop processing;
+matching labels count once. The same model and validation choices are available as for objects.</p>
+<p>Optional <b>Labelled test points or polygons</b> are sampled from the same raster, using the same bands and mask. They must select different
+pixels from the training data, even if the geometries differ. Training and test layers can use different geometry types.
+With test data, all training pixels fit the model and only the supplied test pixels are evaluated.
+Matching labels within each set count once per pixel. Without test data, the current holdout settings apply.
+Polygon attributes, including a holdout group field, are copied to sampled pixels; use grouped or spatial validation to keep training areas together.</p>
 <p>The output preserves the raster CRS, dimensions, and transform. NoData is <code>0</code>; class codes are <code>1..K</code>,
 which may differ from numeric input labels. Read the mapping in the HTML report or GeoTIFF <code>class_mapping</code> tag before styling.</p>
 
 <h2 id="confusionmatrix">Confusion matrix from raster</h2>
-<p><code>obia:confusionmatrix</code> compares an existing single-band classified raster with labelled test points.
-Select the raster, points, test class field, and a <code>.txt</code> output. The UTF-8 file is tab separated:
+<p><code>obia:confusionmatrix</code> compares an existing single-band classified raster with labelled test points or polygons.
+Select the raster, test labels, class field, and a <code>.txt</code> output. The UTF-8 file is tab separated:
 observed class labels run down the first column, predicted labels across the header, and cells contain counts.</p>
 <p>OBIA GeoTIFF <code>class_mapping</code> tags are used automatically. For other rasters, test labels must contain numeric raster codes.
-Points are reprojected to the raster CRS. Outside/NoData points and conflicting labels in one pixel stop processing;
-matching duplicates count once per pixel. Only sampled cells are read into memory. No model is fitted.</p>
+Labels are reprojected to the raster CRS. Polygon sampling follows the same touched-pixel rule as classification.
+Outside points, polygons with no intersecting pixels, NoData pixels, and conflicting labels in one pixel stop processing;
+matching labels count once per pixel. Counts are pixels, not polygons or area-weighted counts.
+Only sampled cells are read into memory. No model is fitted.</p>
 
 <h2 id="checkdependencies">Check OBIA dependencies</h2>
 <p><code>obia:checkdependencies</code> checks installed-engine status and runs a small real segmentation → features → labels → classification workflow,
@@ -132,7 +139,8 @@ Use <b>Set up OBIA → Repair engine</b> if validation fails.</p>
 <p>Use local raster files with a saved CRS. Export web layers and subdatasets to GeoTIFF first. Apply band scale/offset metadata to actual values before processing.
 Raster renderer changes, the map view, and the project CRS do not change analysis inputs.</p>
 <p>Vectors honor Processing's selected-features option, filters, and pending edits. Supply valid polygons or single points with a CRS.
-Existing segment IDs must be unique and non-null; missing IDs are generated. Raster masks must already be aligned to the source grid.</p>
+Existing object segment IDs must be unique and non-null; missing IDs are generated. Label polygons need no object IDs or predictor fields.
+Raster masks must already be aligned to the source grid.</p>
 <p>Full raster data and outputs occupy memory. Prediction batching does not make the workflow out-of-core. Clip large images first.
 Use QGIS for clipping, reprojection, mosaicking, rasterization, and styling.</p>
 <p>Choose distinct output paths separate from all inputs. Vector outputs are GeoPackages, rasters are GeoTIFFs, and reports are HTML.

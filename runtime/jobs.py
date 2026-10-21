@@ -81,23 +81,78 @@ def vector_source(path, kind="Polygon", crs=None, allow_empty=False):
         raise ValueError("Vector inputs need a saved CRS.")
     if data.empty and not allow_empty:
         raise ValueError("The vector input has no features.")
-    allowed = {"Point"} if kind == "Point" else {"Polygon", "MultiPolygon"}
+    allowed = {
+        "Point": {"Point"},
+        "Polygon": {"Polygon", "MultiPolygon"},
+        "Labels": {"Point", "Polygon", "MultiPolygon"},
+    }[kind]
     if (
         not data.geom_type.isin(allowed).all()
         or data.geometry.is_empty.any()
         or not data.geometry.is_valid.all()
     ):
+        description = "point or polygon" if kind == "Labels" else kind.lower()
         raise ValueError(
-            f"Input requires valid, nonempty {kind.lower()} geometries. Fix geometries in QGIS first."
+            f"Input requires valid, nonempty {description} geometries. Fix geometries in QGIS first."
         )
     if crs is not None and data.crs != crs:
         data = data.to_crs(crs)
-    if kind != "Point":
+    if not np.isfinite(data.geometry.bounds.to_numpy()).all():
+        raise ValueError(
+            "Vector geometries must have finite coordinates in the target CRS."
+        )
+    if kind == "Polygon":
         if "segment_id" not in data:
             data["segment_id"] = np.arange(1, len(data) + 1)
         if data.segment_id.isna().any() or data.segment_id.duplicated().any():
             raise ValueError("segment_id must be unique and non-null for every object.")
     return data
+
+
+def raster_label_points(raster, labels):
+    """Expand polygons to touched pixel centres for OBIA's unchanged point API.
+
+    Keep source attributes (including holdout groups), and let the existing
+    sampler reject invalid cells and conflicting classes and deduplicate pixels.
+    A window per polygon bounds rasterization memory and handles rotated grids.
+    """
+    import geopandas as gpd
+    import numpy as np
+    import pandas as pd
+    from rasterio.errors import WindowError
+    from rasterio.features import geometry_mask, geometry_window
+    from rasterio.transform import xy
+
+    if labels.geom_type.eq("Point").all():
+        return labels
+    parts = []
+    for position, geometry in enumerate(labels.geometry):
+        if geometry.geom_type == "Point":
+            parts.append(labels.iloc[[position]])
+            continue
+        try:
+            window = geometry_window(raster, [geometry])
+        except WindowError as exc:
+            raise ValueError(
+                f"Label polygon {position + 1} has no intersecting raster pixels."
+            ) from exc
+        touched = geometry_mask(
+            [geometry],
+            out_shape=(int(window.height), int(window.width)),
+            transform=raster.window_transform(window),
+            all_touched=True,
+            invert=True,
+        )
+        rows, cols = np.nonzero(touched)
+        if not len(rows):
+            raise ValueError(
+                f"Label polygon {position + 1} has no intersecting raster pixels."
+            )
+        xs, ys = xy(raster.transform, rows + window.row_off, cols + window.col_off)
+        samples = labels.iloc[np.repeat(position, len(rows))].copy()
+        samples = samples.set_geometry(gpd.points_from_xy(xs, ys, crs=raster.crs))
+        parts.append(samples)
+    return pd.concat(parts, ignore_index=True)
 
 
 def validate_destinations(payload, names, raster_output=False):
@@ -266,11 +321,11 @@ def label_objects(p):
 
     validate_destinations(p, ("output", "mixed"))
     objects = vector_source(p["objects"])
-    points = vector_source(p["points"], kind="Point", crs=objects.crs)
+    points = vector_source(p["points"], kind="Labels", crs=objects.crs)
     column = p["label_field"]
     if column not in points or points[column].isna().any():
         raise ValueError(
-            "Every training point needs a non-null class label in the selected field."
+            "Every label point or polygon needs a non-null class label in the selected field."
         )
     # Keep only the label and geometry to avoid spatial-join suffix collisions.
     points = points[[column, points.geometry.name]].rename(columns={column: "class"})
@@ -279,7 +334,7 @@ def label_objects(p):
     objects["feature_class"] = pd.Series(
         [None] * len(objects), index=objects.index, dtype=object
     )
-    progress(30, "Assigning point labels to intersecting objects")
+    progress(30, "Assigning labels to intersecting objects")
     labelled, mixed_ids = label_segments(objects, points)
     if previous_class is not None:
         objects["class"] = previous_class
@@ -480,10 +535,13 @@ def raster_confusion_matrix(p):
             raise ValueError(
                 "Apply raster scale/offset values before evaluating class codes."
             )
-        points = vector_source(p["points"], kind="Point", crs=raster.crs)
+        labels = vector_source(p["points"], kind="Labels", crs=raster.crs)
         field = p["label_field"]
-        if field not in points or points[field].isna().any():
-            raise ValueError("Choose a test class field with a label for every point.")
+        if field not in labels or labels[field].isna().any():
+            raise ValueError(
+                "Choose a test class field with a label for every point or polygon."
+            )
+        points = raster_label_points(raster, labels)
         rows, cols = rasterio.transform.rowcol(
             raster.transform, points.geometry.x, points.geometry.y
         )
@@ -504,7 +562,7 @@ def raster_confusion_matrix(p):
         )
         if np.ma.getmaskarray(sampled).any() or not np.isfinite(sampled.data).all():
             raise ValueError(
-                "Test points fall on NoData or invalid raster pixels. Review those points."
+                "Test labels select NoData or invalid raster pixels. Review those labels."
             )
         if not (sampled.data == np.floor(sampled.data)).all():
             raise ValueError("Classified raster values must be integer class codes.")
@@ -602,7 +660,8 @@ def classify_pixels(p):
 
     validate_destinations(p, ("output", "report"), raster_output=True)
     with image_source(p["raster"]) as image:
-        points = vector_source(p["points"], kind="Point")
+        labels = vector_source(p["points"], kind="Labels", crs=image.crs)
+        points = raster_label_points(image.rasterio_obj, labels)
         selected = bands(p.get("bands"), image.img_data.shape[2])
         options = dict(
             bands=selected,
@@ -611,7 +670,10 @@ def classify_pixels(p):
         )
         samples = sample_pixels(image, points, **options)
         if p.get("test"):
-            test = vector_source(p["test"], kind="Point")
+            test = raster_label_points(
+                image.rasterio_obj,
+                vector_source(p["test"], kind="Labels", crs=image.crs),
+            )
             test_options = dict(
                 options, label_column=p.get("test_label_field") or p["label_field"]
             )

@@ -9,22 +9,23 @@ from .common import Algorithm
 
 
 class LabelObjects(Algorithm):
-    ID, TITLE = "labelobjects", "Label objects from points"
+    ID, TITLE = "labelobjects", "Label objects from points or polygons"
     HELP = (
-        "<p>Assign point classes to intersecting polygons, reprojecting points to the objects' CRS. "
+        "<p>Assign classes from labelled points or polygons to every intersecting object, "
+        "reprojecting labels to the objects' CRS. Use this tool to prepare training or test objects. "
         "The output contains only objects with one agreed class, stored in feature_class. "
         "Objects with conflicting labels are excluded and can be saved separately for review. "
-        "Unlabelled objects are excluded. A point on a boundary may label both adjacent objects. "
+        "Unlabelled objects are excluded. Boundary intersections can label adjacent objects. "
         "Previous feature_class values are cleared before assigning labels.</p>"
     )
 
     def initAlgorithm(self, config=None):
         self.vector_input("OBJECTS", "Objects with features")
-        self.vector_input("POINTS", "Labelled points", points=True)
+        self.vector_input("POINTS", "Labelled points or polygons", labels=True)
         self.add(
             QgsProcessingParameterField(
                 "CLASS_FIELD",
-                "Point class field",
+                "Class field",
                 parentLayerParameterName="POINTS",
                 defaultValue="class",
             )
@@ -68,8 +69,8 @@ class Classifier(Algorithm):
     def test_parameters(self, points=False):
         self.vector_input(
             "TEST",
-            "Labelled test points" if points else "Labelled test objects",
-            points=points,
+            "Labelled test points or polygons" if points else "Labelled test objects",
+            labels=points,
             optional=True,
         )
         self.add(
@@ -178,6 +179,7 @@ class ClassifyObjects(Classifier):
     ID, TITLE = "classifyobjects", "Classify objects"
     HELP = (
         "<p>Select numeric predictor fields present in the objects, training, and optional test layers. "
+        "Use Label objects from points or polygons to assign training and test labels first. "
         "Training and test objects must be distinct. Exclude class labels, IDs, "
         "grouping fields, and previous predictions. Output adds predicted_class and prediction_margin "
         "to all objects; margin is the gap between the two highest class probabilities.</p>"
@@ -223,10 +225,13 @@ class ClassifyObjects(Classifier):
 class ClassifyPixels(Classifier):
     ID, TITLE = "classifypixels", "Classify pixels"
     HELP = (
-        "<p>Train from raster pixels containing labelled points, then classify every valid pixel. "
-        "Points are reprojected to the raster CRS. Outside/NoData points and conflicting labels "
-        "in the same pixel stop processing. Matching duplicates count once. Optional test points "
-        "are sampled from the same raster and must select different pixels from the training points. "
+        "<p>Train from raster pixels containing labelled points or touched by labelled polygons, "
+        "then classify every valid pixel. Labels are reprojected to the raster CRS. "
+        "Polygon holes are respected and only the overlap with the raster is sampled. "
+        "Outside points, polygons with no intersecting pixels, NoData/masked pixels, and conflicting "
+        "labels in the same pixel stop processing. Matching duplicates count once. Optional test "
+        "points or polygons are sampled from the same raster and must select different pixels "
+        "from the training data. "
         "The output preserves "
         "the source grid with NoData 0 and class codes 1..K. The HTML report and GeoTIFF class_mapping "
         "tag link those codes to original labels.</p>"
@@ -234,11 +239,11 @@ class ClassifyPixels(Classifier):
 
     def initAlgorithm(self, config=None):
         self.raster_parameters()
-        self.vector_input("POINTS", "Labelled points", points=True)
+        self.vector_input("POINTS", "Labelled training points or polygons", labels=True)
         self.add(
             QgsProcessingParameterField(
                 "CLASS_FIELD",
-                "Point class field",
+                "Training class field",
                 parentLayerParameterName="POINTS",
                 defaultValue="class",
             )

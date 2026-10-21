@@ -60,7 +60,8 @@ QT_QPA_PLATFORM=offscreen OBIA_TEST_QGIS=1 \
 For the macOS application wrapper, supply its GDAL/PROJ data directories:
 
 ```bash
-env -u PYTHONHOME -u PYTHONPATH -u QGIS_PREFIX_PATH -u PROJ_LIB \
+env -u PYTHONHOME -u QGIS_PREFIX_PATH -u PROJ_LIB \
+  PYTHONPATH=/Applications/QGIS-final-4_2_3.app/Contents/Resources/qgis/python/plugins \
   QT_QPA_PLATFORM=offscreen OBIA_TEST_QGIS=1 \
   OBIA_ENGINE_ROOT=/private/tmp/obia-engine-test \
   GDAL_DATA=/Applications/QGIS-final-4_2_3.app/Contents/Resources/qgis/gdal \
@@ -97,6 +98,26 @@ the engine on macOS/Linux and the shipped plugin against QGIS 3.40 and 4.2.
 Configured CI is not evidence of a successful run.
 
 ## Local release record
+
+Verification for 0.1.4 on 2026-10-20, macOS Apple Silicon:
+
+| Check | Result |
+| --- | --- |
+| Scientific engine suite | All 25 tests passed using the existing private engine |
+| Packaged QGIS 3.40.3 / Qt 5 and 4.2.3 / Qt 6 | 69 tests each, OK; 25 expected skips (23 separately run scientific tests, 2 Windows-only tests) |
+| Polygon inputs in Processing | Both classifiers, object labelling, and raster confusion matrices passed with selections and pending test-field edits |
+| Classification dialog visibility | Point and polygon test inputs hide the holdout fraction and restore its value when cleared |
+
+Polygon checks compare raster samples with independently intersected pixel
+footprints, including polygons too small to contain a pixel centre, holes,
+multipart shapes, rotated grids, reprojection, partial raster coverage, and
+group attributes. Tests compare point/polygon models and validation matrices,
+verify default and grouped holdouts, count matching overlaps once, and reject
+conflicting labels, outside/NoData samples, or reused training/test pixels.
+Object tests verify boundary intersections, conflicts, stale-label clearing,
+and preservation of predictor fields. The existing OBIA source and engine
+manifests are unchanged. See the release commit's Actions run for cross-platform
+installation and Windows long-path verification.
 
 Verification for 0.1.3 on 2026-10-20, Linux x64:
 

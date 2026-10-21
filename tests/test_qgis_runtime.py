@@ -112,18 +112,31 @@ class QgisIntegrationTests(unittest.TestCase):
         self.assertTrue(layer.isValid())
         return layer
 
-    def points(self, objects):
-        from qgis.core import QgsVectorLayer, QgsFeature
+    def points(self, objects, polygons=False):
+        from math import floor
+        from qgis.core import QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
 
         layer = self.keep_layer(
             QgsVectorLayer(
-                "Point?crs=EPSG:32605&field=cover:string", "Labels", "memory"
+                ("Polygon" if polygons else "Point")
+                + "?crs=EPSG:32605&field=cover:string",
+                "Labels",
+                "memory",
             )
         )
         for obj in objects.getFeatures():
             point = obj.geometry().pointOnSurface()
             f = QgsFeature(layer.fields())
-            f.setGeometry(point)
+            if polygons:
+                centre = QgsGeometry.fromPointXY(
+                    QgsPointXY(
+                        floor(point.asPoint().x()) + 0.5,
+                        floor(point.asPoint().y()) + 0.5,
+                    )
+                )
+                f.setGeometry(centre.buffer(0.2, 4))
+            else:
+                f.setGeometry(point)
             f.setAttributes(["forest" if point.asPoint().x() < 116 else "water"])
             self.assertTrue(layer.dataProvider().addFeatures([f])[0])
         return layer
@@ -152,6 +165,7 @@ class QgisIntegrationTests(unittest.TestCase):
         for name, geometry, wkt in (
             ("classifyobjects", "Polygon", "POLYGON((0 0, 1 0, 1 1, 0 0))"),
             ("classifypixels", "Point", "POINT(0 0)"),
+            ("classifypixels", "Polygon", "POLYGON((0 0, 1 0, 1 1, 0 0))"),
         ):
             layer = self.keep_layer(
                 QgsVectorLayer(
@@ -172,7 +186,9 @@ class QgisIntegrationTests(unittest.TestCase):
                     algorithm = self.registry.createAlgorithmById("obia:" + name)
                     algorithm.parameterDefinition("TEST_FRACTION").setDefaultValue(0.35)
                     if prefilled:
-                        algorithm.parameterDefinition("TEST").setDefaultValue(layer.id())
+                        algorithm.parameterDefinition("TEST").setDefaultValue(
+                            layer.id()
+                        )
                     dialog = algorithm.createCustomParametersWidget()
                     self.assertIsNotNone(dialog)
                     try:
@@ -181,8 +197,12 @@ class QgisIntegrationTests(unittest.TestCase):
 
                         def assert_visible(expected):
                             self.app.processEvents()
-                            self.assertEqual(fraction.wrappedLabel().isVisible(), expected)
-                            self.assertEqual(fraction.wrappedWidget().isVisible(), expected)
+                            self.assertEqual(
+                                fraction.wrappedLabel().isVisible(), expected
+                            )
+                            self.assertEqual(
+                                fraction.wrappedWidget().isVisible(), expected
+                            )
                             self.assertAlmostEqual(fraction.parameterValue(), 0.35)
 
                         assert_visible(not prefilled)
@@ -347,6 +367,14 @@ class QgisIntegrationTests(unittest.TestCase):
             project.removeMapLayer(points.id())
 
     def test_supplied_test_layers_use_all_training_and_honor_selections(self):
+        self.check_supplied_test_layers(polygons=False)
+
+    def test_polygon_training_and_test_layers_use_all_training_and_honor_selections(
+        self,
+    ):
+        self.check_supplied_test_layers(polygons=True)
+
+    def check_supplied_test_layers(self, polygons):
         from qgis.core import (
             QgsProcessingFeatureSourceDefinition,
             QgsProject,
@@ -355,7 +383,19 @@ class QgisIntegrationTests(unittest.TestCase):
         )
 
         objects = self.segment()
-        points = self.points(objects)
+        points = self.points(objects, polygons=polygons)
+        for name, parameter in (
+            ("labelobjects", "POINTS"),
+            ("classifypixels", "POINTS"),
+            ("classifypixels", "TEST"),
+            ("confusionmatrix", "POINTS"),
+        ):
+            algorithm = self.registry.algorithmById("obia:" + name)
+            self.assertTrue(
+                algorithm.parameterDefinition(parameter).checkValueIsAcceptable(
+                    points, self.context
+                )
+            )
         test_points = self.keep_layer(points.clone())
         project = QgsProject.instance()
         project.addMapLayer(points)
@@ -440,6 +480,28 @@ class QgisIntegrationTests(unittest.TestCase):
                         with self.assertRaisesRegex(QgsProcessingException, "separate"):
                             self.run_algorithm(name, dict(parameters, OUTPUT=test_path))
                         self.assertEqual(Path(test_path).read_bytes(), before)
+                    else:
+                        from qgis.core import QgsRasterLayer
+
+                        matrix = self.run_algorithm(
+                            "confusionmatrix",
+                            dict(
+                                INPUT=self.keep_layer(
+                                    QgsRasterLayer(result["OUTPUT"], "Classes")
+                                ),
+                                POINTS=source(test_points),
+                                CLASS_FIELD="truth",
+                                OUTPUT=str(self.d / "test-matrix.txt"),
+                            ),
+                        )
+                        counts = [
+                            int(v)
+                            for row in Path(matrix["OUTPUT"])
+                            .read_text()
+                            .splitlines()[1:]
+                            for v in row.split("\t")[1:]
+                        ]
+                        self.assertEqual(sum(counts), len(test_ids))
         finally:
             project.removeMapLayer(points.id())
             project.removeMapLayer(test_points.id())

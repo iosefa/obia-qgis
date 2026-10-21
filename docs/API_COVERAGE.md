@@ -12,11 +12,11 @@ are installed.
 | Seeded random walker, flood, snakes/active contours | Python workflows requiring seed arrays/contours; not exposed in the simple dialogs |
 | `features.extract_features` | Band statistics, optional p10/p90, NDVI, all shape measurements, optional default GLCM features |
 | Other spectral indices / custom texture angles, bounds, entropy radii | Python configuration; plugin exposes common settings only |
-| `utils.label_segments` | Point classes, mixed-object output; resets labels to handle v0.2.0 no-intersection and stale-label cases |
+| `utils.label_segments` | Point or polygon classes assigned by intersection, mixed-object output; resets labels to handle v0.2.0 no-intersection and stale-label cases |
 | `classification.classify` | Random Forest, Extra Trees, XGBoost; explicit numeric fields and supplied-test or holdout report |
-| `sample_pixels`, `classify_pixels`, `ClassifiedRaster.write_geotiff` | Pixel classification with class mapping and preserved georeferencing |
+| `sample_pixels`, `classify_pixels`, `ClassifiedRaster.write_geotiff` | Pixel classification with class mapping and preserved georeferencing; plugin expands polygons to touched pixel centres for the unchanged point API |
 | `split_objects` | Explicit partitions for supplied test layers; random, grouped, and spatial holdouts with optional buffer |
-| Confusion matrices | OBIA's validation matrices in HTML reports; Rasterio point sampling and scikit-learn counts for an existing classified map |
+| Confusion matrices | OBIA's validation matrices in HTML reports; Rasterio sampling at points or polygon-intersected pixels and scikit-learn counts for an existing classified map |
 | `cross_validation_splits` | Python workflow; no cross-validation UI |
 | Other estimators, custom pipelines, spatial class restrictions, reusable models | Python workflow |
 | SHAP explanations | Optional extra omitted |

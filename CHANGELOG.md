@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4
+
+- Accept labelled points or polygons in **Label objects from points or polygons**.
+  Every intersecting object receives the class, including boundary intersections;
+  conflicting objects remain excluded and can be saved for review. Use this step
+  for both training and test objects.
+- Accept polygons in pixel classification's training and optional test inputs,
+  and in **Confusion matrix from raster**. Sample every touched raster pixel,
+  respecting polygon holes, multipart geometries, reprojection, and raster extent.
+- Keep the existing holdout/supplied-test workflow, count matching labels once
+  per pixel, and reject conflicting labels or reused training/test pixels.
+- Preserve the unchanged OBIA 0.2.0 source and existing private engine installation.
+
 ## 0.1.3
 
 - Hide the holdout fraction in object and pixel classification dialogs when a
