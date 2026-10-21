@@ -78,7 +78,7 @@ jobs:
           export OBIA_PLUGIN_PATH="$RUNNER_TEMP/plugin/obia_qgis"
           export OBIA_ENGINE_ROOT="$RUNNER_TEMP/obia-engine"
           export QGIS_PREFIX_PATH="$CONDA_PREFIX"
-          export PYTHONPATH="$CONDA_PREFIX/share/qgis/python"
+          export PYTHONPATH="$CONDA_PREFIX/share/qgis/python:$CONDA_PREFIX/share/qgis/python/plugins"
           python - <<'PY'
           import os, sys
           sys.path.insert(0, os.environ["OBIA_PLUGIN_PATH"])
