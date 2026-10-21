@@ -14,8 +14,8 @@ release has been tested.
 
 1. Download [obia_qgis-0.1.5.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.5/obia_qgis-0.1.5.zip)
    from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest).
-   Choose the asset labelled **INSTALL IN QGIS**. The identical `obia_qgis.zip`
-   also works. **Do not install GitHub's automatic “Source code (zip)” download**:
+   Choose the asset labelled **INSTALL IN QGIS**.
+   **Do not install GitHub's automatic “Source code (zip)” download**:
    its folder name is not a valid plugin package.
    Developers can build an install ZIP with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).

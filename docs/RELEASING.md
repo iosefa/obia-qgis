@@ -27,12 +27,13 @@
    loader and verify all ten Processing algorithms. Loading source under a
    supplied import alias can conceal an invalid ZIP folder name.
 6. After the commit's Actions checks pass, publish a matching `vVERSION` GitHub
-   release with `dist/obia_qgis-VERSION.zip` and `dist/obia_qgis.zip` attached as
-   release assets. Label the versioned ZIP **INSTALL IN QGIS**, link to it at
-   the top of the release notes, and explain that GitHub's automatic **Source
-   code (zip)** download is not an installable plugin ZIP. Include SHA256
-   checksums, download the published assets, and verify they match the tested
-   ZIP. Run the same `--qgis` check on the downloaded installer. Submission to
+   release with **one attachment**, `dist/obia_qgis-VERSION.zip`. The local
+   `dist/obia_qgis.zip` alias is for development and CI; do not upload it or a
+   separate checksum file. Label the installer **INSTALL IN QGIS**, link to it
+   at the top of the release notes, and explain that GitHub's automatic **Source
+   code (zip)** download is not an installable plugin ZIP. Download the published
+   installer and compare its SHA256 with the tested ZIP as a maintainer check.
+   Run the same `--qgis` check on the downloaded installer. Submission to
    the QGIS plugin directory is separate; this repository does not claim QGIS
    directory approval.
 

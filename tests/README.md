@@ -117,8 +117,8 @@ Configured CI is not evidence of a successful run.
 
 Release-download verification on 2026-10-21, macOS Apple Silicon:
 
-- Both published 0.1.5 installer assets are identical, match `SHA256SUMS`, and
-  contain the expected `obia_qgis/` package. Their SHA256 is
+- The published `obia_qgis-0.1.5.zip` contains the expected `obia_qgis/`
+  package. Its verified SHA256 is
   `6800879da0565421f00b443385ab5dc8237ce3d21ac13c93262e855d58625b68`.
 - The downloaded installer passed discovery, loading, startup, registration of
   all ten algorithms, and unloading in QGIS 3.40.3 / Qt 5 and 4.2.3 / Qt 6.
@@ -126,7 +126,8 @@ Release-download verification on 2026-10-21, macOS Apple Silicon:
   the archive checker rejects that ZIP before installation.
 - Local builds were reproducible and their versioned/unversioned assets matched.
   Only installation/verification documentation differs from the published ZIP;
-  its plugin and engine code is unchanged. The published assets are retained.
+  its plugin and engine code is unchanged. The versioned installer is retained;
+  the duplicate ZIP and separate checksum attachment were removed from the release.
 
 Verification for 0.1.5 on 2026-10-21, macOS Apple Silicon:
 
