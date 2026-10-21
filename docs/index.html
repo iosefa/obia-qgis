@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.2 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.3 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Download <code>obia_qgis-0.1.2.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
+<ol><li>Download <code>obia_qgis-0.1.3.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -92,7 +92,8 @@ the training and prediction layers. Exclude IDs, labels, grouping fields, and pr
 A depth of zero means unlimited for Random Forest/Extra Trees and depth 6 for XGBoost. Computation uses one estimator thread per job.</p>
 <h3>Validation</h3>
 <p>Optionally supply <b>Labelled test objects</b>. The model then uses <b>all training data</b>, and the HTML report evaluates only
-the supplied test objects. Holdout settings are ignored. Test objects must have the selected numeric predictor fields.
+the supplied test objects. Holdout settings are ignored, and the holdout fraction is hidden until the test layer is cleared;
+its previous value is preserved. This also applies to the pixel classification dialog. Test objects must have the selected numeric predictor fields.
 Set <b>Test class field</b> if its name differs from the training class field; leave it empty to use the same field name.
 Test classes must occur in training, but a test set may contain a subset of the classes. Training and test objects must be distinct.</p>
 <p>Without test data, the default reserves 20% of samples with a stratified random split. Set the fraction to 0 to train on all samples without held-out accuracy.

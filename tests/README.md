@@ -98,6 +98,19 @@ Configured CI is not evidence of a successful run.
 
 ## Local release record
 
+Verification for 0.1.3 on 2026-10-20, Linux x64:
+
+| Check | Result |
+| --- | --- |
+| Scientific engine suite | All 19 tests passed using the existing private engine |
+| Packaged QGIS 4.2.3 / Qt 6 | 62 tests, OK; 19 expected skips (17 separately run scientific tests, 2 Windows-only tests) |
+| Classification dialog visibility | Both classifiers passed selection, clearing, selected-feature input, prefilled test layer, and retained holdout value checks |
+| Package verification | ZIP integrity, source hashes, licenses, Python syntax, and offline help links passed |
+
+The dialog regression check also runs in the QGIS 3.40 and 4.2 CI jobs. The
+local checks above do not establish their results or the cross-platform engine
+installation results; see the release commit's Actions run for those checks.
+
 Verification for 0.1.2 on 2026-10-19, macOS Apple Silicon:
 
 | Check | Result |

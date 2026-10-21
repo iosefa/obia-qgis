@@ -60,6 +60,11 @@ class Classifier(Algorithm):
         "Use spatial/grouped validation to assess transfer to new areas.</p>"
     )
 
+    def createCustomParametersWidget(self, parent=None):
+        from .classification_dialog import ClassificationDialog
+
+        return ClassificationDialog(self, parent=parent)
+
     def test_parameters(self, points=False):
         self.vector_input(
             "TEST",

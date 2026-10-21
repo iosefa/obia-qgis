@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Hide the holdout fraction in object and pixel classification dialogs when a
+  labelled test layer is supplied; restore it and its value when the layer is cleared.
+
 ## 0.1.2
 
 - Added labelled confusion matrices to object and pixel classification reports

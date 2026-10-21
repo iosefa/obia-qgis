@@ -5,14 +5,14 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.2 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.3 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Download [obia_qgis-0.1.2.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.2/obia_qgis-0.1.2.zip)
+1. Download [obia_qgis-0.1.3.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.3/obia_qgis-0.1.3.zip)
    from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest),
    or build it with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).
@@ -123,7 +123,8 @@ All algorithm IDs have the prefix `obia:`. Help links open the bundled
 Classifiers are Random Forest, Extra Trees, and XGBoost. Both classification
 tools accept an optional **Labelled test objects/points** layer. When supplied,
 the model uses **all training data** and the report evaluates only the test
-data. Holdout settings are ignored. Select **Test class field** if its name
+data. Holdout settings are ignored, and the dialog hides the holdout fraction
+until the test layer is cleared. Select **Test class field** if its name
 differs from the training class field. Test objects need the same predictor
 fields; test points are sampled from the input raster. Test labels must occur
 in training, but the test set need not contain every class. Training and test

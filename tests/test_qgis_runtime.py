@@ -139,6 +139,71 @@ class QgisIntegrationTests(unittest.TestCase):
         self.assertTrue(dialog.install_button.isEnabled())
         dialog.close()
 
+    def test_classification_dialog_holdout_visibility(self):
+        from qgis.core import (
+            QgsFeature,
+            QgsGeometry,
+            QgsProcessingFeatureSourceDefinition,
+            QgsProject,
+            QgsVectorLayer,
+        )
+        from qgis.PyQt import sip
+
+        for name, geometry, wkt in (
+            ("classifyobjects", "Polygon", "POLYGON((0 0, 1 0, 1 1, 0 0))"),
+            ("classifypixels", "Point", "POINT(0 0)"),
+        ):
+            layer = self.keep_layer(
+                QgsVectorLayer(
+                    geometry + "?crs=EPSG:32605&field=class:string",
+                    "Labelled test data",
+                    "memory",
+                )
+            )
+            feature = QgsFeature(layer.fields())
+            feature.setAttributes(["forest"])
+            feature.setGeometry(QgsGeometry.fromWkt(wkt))
+            self.assertTrue(layer.dataProvider().addFeatures([feature])[0])
+            layer.selectAll()
+            QgsProject.instance().addMapLayer(layer)
+
+            for prefilled in (False, True):
+                with self.subTest(algorithm=name, prefilled=prefilled):
+                    algorithm = self.registry.createAlgorithmById("obia:" + name)
+                    algorithm.parameterDefinition("TEST_FRACTION").setDefaultValue(0.35)
+                    if prefilled:
+                        algorithm.parameterDefinition("TEST").setDefaultValue(layer.id())
+                    dialog = algorithm.createCustomParametersWidget()
+                    self.assertIsNotNone(dialog)
+                    try:
+                        dialog.show()
+                        fraction = dialog.mainWidget().wrappers["TEST_FRACTION"]
+
+                        def assert_visible(expected):
+                            self.app.processEvents()
+                            self.assertEqual(fraction.wrappedLabel().isVisible(), expected)
+                            self.assertEqual(fraction.wrappedWidget().isVisible(), expected)
+                            self.assertAlmostEqual(fraction.parameterValue(), 0.35)
+
+                        assert_visible(not prefilled)
+                        for value in (
+                            layer,
+                            layer.id(),
+                            QgsProcessingFeatureSourceDefinition(
+                                layer.id(), selectedFeaturesOnly=True
+                            ),
+                        ):
+                            dialog.setParameters({"TEST": value})
+                            assert_visible(False)
+                            dialog.setParameters({"TEST": None})
+                            assert_visible(True)
+                        dialog.setParameters({"TEST": layer})
+                        dialog.setParameters({"TEST": ""})
+                        assert_visible(True)
+                    finally:
+                        dialog.close()
+                        sip.delete(dialog)
+
     def test_all_segmentation_dialogs_and_band_selection(self):
         from qgis.core import QgsVectorLayer, QgsRasterLayer
 
