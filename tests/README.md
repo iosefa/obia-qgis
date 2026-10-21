@@ -99,6 +99,19 @@ Configured CI is not evidence of a successful run.
 
 ## Local release record
 
+Verification for 0.1.5 on 2026-10-21, macOS Apple Silicon:
+
+| Check | Result |
+| --- | --- |
+| Installer suite | 35 tests, OK; 2 Windows-only filesystem tests skipped |
+| Packaged setup dialog | QGIS 3.40.3 setup/provider smoke test passed; dialog rendered and visually reviewed |
+| Package verification | ZIP integrity, unchanged OBIA source hashes, licenses, Python syntax, and offline help anchors passed |
+
+This release changes setup wording only. The setup introduction omits a library
+version, and the engine location continues to come from the runtime's current
+installation status. The release commit's Actions run covers complete engine
+installation and both QGIS versions.
+
 Verification for 0.1.4 on 2026-10-20, macOS Apple Silicon:
 
 | Check | Result |

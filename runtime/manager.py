@@ -48,7 +48,7 @@ def platform_tag():
         if system == "Linux":
             return "linux-64"
     raise EngineError(
-        f"The private engine is not available for {system} {machine}. Use a supported 64-bit QGIS installation."
+        f"The raster analysis engine is not available for {system} {machine}. Use a supported 64-bit QGIS installation."
     )
 
 
@@ -812,7 +812,7 @@ def install_engine(progress=None, cancel=None):
             )
             report(
                 76,
-                "Installing the isolated engine; QGIS and shell settings stay unchanged",
+                "Installing the raster analysis engine; QGIS and shell settings stay unchanged",
             )
             code, logs = run_process(
                 [
@@ -839,7 +839,7 @@ def install_engine(progress=None, cancel=None):
             )
             if code != 0:
                 raise EngineError(
-                    f"The private engine installer failed. The previous engine is unchanged. {logs[-3000:]}"
+                    f"The engine installer failed. The previous engine is unchanged. {logs[-3000:]}"
                 )
             report(88, "Finalizing the engine installation")
             _sign_relocated_macos(prefix, cancel)
@@ -939,7 +939,7 @@ def remove_engine(progress=None, cancel=None):
             if progress:
                 progress(
                     100 * (index + 1) / max(1, len(generations)),
-                    "Removing private engine files",
+                    "Removing engine files",
                 )
         if progress:
             progress(

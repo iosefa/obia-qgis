@@ -5,27 +5,27 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.4 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.5 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Download [obia_qgis-0.1.4.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.4/obia_qgis-0.1.4.zip)
+1. Download [obia_qgis-0.1.5.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.5/obia_qgis-0.1.5.zip)
    from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest),
    or build it with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).
 2. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**,
    select the ZIP, and enable **OBIA**.
 3. Open **Plugins → OBIA → Set up OBIA**, then click **Install engine**.
-   Setup downloads and checks the packages, installs a private Python engine,
+   Setup downloads and checks the packages, installs the raster analysis engine,
    and tests actual raster analysis before activating it. No terminal is needed.
 4. Open **Processing → Toolbox**, search for **Check OBIA dependencies**, and run
    it. View the report in **Processing → Results Viewer**. Search for **OBIA**
    to find the analysis tools.
 
-This follows the PyForestScan plugin's Install-from-ZIP and private-engine setup
+This follows the PyForestScan plugin's Install-from-ZIP and engine setup
 approach. OBIA's engine supplies its scientific stack in a separate process;
 it does not run pip in QGIS, alter QGIS's libraries, or change shell settings.
 The ZIP bundles the unchanged OBIA v0.2.0 source, its MIT license, and offline help.

@@ -57,7 +57,7 @@ class SetupDialog(QDialog):
         self._failed_message = ""
         layout = QVBoxLayout(self)
         explanation = QLabel(
-            "Install OBIA 0.2.0's private raster analysis engine once, then use the "
+            "Install the OBIA raster analysis engine once, then use the "
             "Processing Toolbox. Setup downloads verified packages without changing "
             "QGIS, your other Python environments, or shell settings."
         )
@@ -111,7 +111,7 @@ class SetupDialog(QDialog):
             f"Allow at least {math.ceil(max(2_000_000_000, state['download_bytes'] * 12) / 1e8) / 10:.1f} GB free for setup. "
             "Previous engine installations stay until you choose Remove engine."
         )
-        self.location.setText("Private engine location: " + state["path"])
+        self.location.setText("Engine location: " + state["path"])
         self.install_button.setText("Repair engine" if ready else "Install engine")
         self.install_button.setEnabled(not state["error"])
         self.remove_button.setEnabled(state.get("removable", ready))
@@ -153,7 +153,7 @@ class SetupDialog(QDialog):
         answer = QMessageBox.question(
             self,
             "Remove OBIA engine?",
-            "Remove this plugin's private engine installations? Your projects and "
+            "Remove this plugin's engine installations? Your projects and "
             "rasters are not affected. Verified downloads are kept for a later reinstall.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,

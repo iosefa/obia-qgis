@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Remove the hard-coded OBIA version from the engine setup introduction.
+- Use "raster analysis engine" and "engine" in setup, progress, removal, and
+  error messages, and update the installation guide to match.
+
 ## 0.1.4
 
 - Accept labelled points or polygons in **Label objects from points or polygons**.
