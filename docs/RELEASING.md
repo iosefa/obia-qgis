@@ -19,13 +19,22 @@
    on runners; only record a pass after those jobs actually succeed.
 5. Update version metadata, changelog, README, offline help, and verification
    record. Run `python scripts/package_plugin.py` and test the resulting ZIP,
-   including its source hashes, licenses, and offline help links.
+   including its source hashes, licenses, and offline help links. The builder
+   validates the archive's `obia_qgis/` package root, required files, CRCs, and
+   Python syntax. With each supported QGIS Python environment, run
+   `python scripts/check_plugin_zip.py dist/obia_qgis.zip --qgis` to discover,
+   load, start, and unload the extracted package through QGIS's normal plugin
+   loader and verify all ten Processing algorithms. Loading source under a
+   supplied import alias can conceal an invalid ZIP folder name.
 6. After the commit's Actions checks pass, publish a matching `vVERSION` GitHub
    release with `dist/obia_qgis-VERSION.zip` and `dist/obia_qgis.zip` attached as
-   release assets. Include SHA256 checksums and verify the downloadable assets
-   match the tested ZIP. GitHub's automatically generated source archives are
-   not installable plugin ZIPs. Submission to the QGIS plugin directory is
-   separate; this repository does not claim QGIS directory approval.
+   release assets. Label the versioned ZIP **INSTALL IN QGIS**, link to it at
+   the top of the release notes, and explain that GitHub's automatic **Source
+   code (zip)** download is not an installable plugin ZIP. Include SHA256
+   checksums, download the published assets, and verify they match the tested
+   ZIP. Run the same `--qgis` check on the downloaded installer. Submission to
+   the QGIS plugin directory is separate; this repository does not claim QGIS
+   directory approval.
 
 Do not move an installed conda prefix. Repairs create a new permanent generation
 and change the active pointer only after the worker's real self-test succeeds.

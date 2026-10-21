@@ -13,8 +13,11 @@ release has been tested.
 ## Install
 
 1. Download [obia_qgis-0.1.5.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.5/obia_qgis-0.1.5.zip)
-   from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest),
-   or build it with `scripts/package_plugin.sh`
+   from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest).
+   Choose the asset labelled **INSTALL IN QGIS**. The identical `obia_qgis.zip`
+   also works. **Do not install GitHub's automatic “Source code (zip)” download**:
+   its folder name is not a valid plugin package.
+   Developers can build an install ZIP with `scripts/package_plugin.sh`
    (Windows: `python scripts/package_plugin.py`).
 2. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**,
    select the ZIP, and enable **OBIA**.
@@ -24,6 +27,11 @@ release has been tested.
 4. Open **Processing → Toolbox**, search for **Check OBIA dependencies**, and run
    it. View the report in **Processing → Results Viewer**. Search for **OBIA**
    to find the analysis tools.
+
+If QGIS reports `No module named 'obia-qgis-0'`, uninstall the failed source
+archive through the plugin manager, restart QGIS, and install the linked
+`obia_qgis-0.1.5.zip`. The installer contains one top-level `obia_qgis/` folder.
+An existing OBIA engine can be reused.
 
 This follows the PyForestScan plugin's Install-from-ZIP and engine setup
 approach. OBIA's engine supplies its scientific stack in a separate process;

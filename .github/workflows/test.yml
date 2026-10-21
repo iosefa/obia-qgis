@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  plugin-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and validate the QGIS install ZIP
+        run: |
+          python scripts/package_plugin.py
+          python scripts/check_plugin_zip.py dist/obia_qgis.zip
+
   installer:
     strategy:
       fail-fast: false
@@ -79,6 +91,7 @@ jobs:
           export OBIA_ENGINE_ROOT="$RUNNER_TEMP/obia-engine"
           export QGIS_PREFIX_PATH="$CONDA_PREFIX"
           export PYTHONPATH="$CONDA_PREFIX/share/qgis/python:$CONDA_PREFIX/share/qgis/python/plugins"
+          python scripts/check_plugin_zip.py dist/obia_qgis.zip --qgis
           python - <<'PY'
           import os, sys
           sys.path.insert(0, os.environ["OBIA_PLUGIN_PATH"])

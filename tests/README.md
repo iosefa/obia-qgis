@@ -49,6 +49,20 @@ subprocess.run([str(python), "-I", "-m", "unittest", "discover", "-s", "tests",
 
 ## Actual QGIS integration
 
+First build the install ZIP with `python scripts/package_plugin.py`. The builder
+checks its package root, required files, archive integrity, and Python syntax.
+Then test the archive with QGIS's actual plugin loader in a fresh process:
+
+```bash
+python scripts/check_plugin_zip.py dist/obia_qgis.zip --qgis
+```
+
+This uses a temporary profile, discovers the extracted `obia_qgis` package,
+starts it, verifies all ten Processing algorithms, and unloads it. No engine is
+needed for plugin loading. Run this check against the downloaded release asset
+as well as the local build. GitHub's automatic source ZIP must be rejected:
+its `obia-qgis-VERSION/` folder cannot be imported as the plugin package.
+
 With a QGIS developer environment or the QGIS application Python:
 
 ```bash
@@ -94,10 +108,25 @@ member against the committed audit. For intentional lock changes use `--write`.
 The CI Windows job disables Windows long-path policy on the disposable runner,
 places the plugin under a long profile-like path, installs/repairs/cancels the
 engine, and checks that the installer did not change that policy. Other jobs run
-the engine on macOS/Linux and the shipped plugin against QGIS 3.40 and 4.2.
+the engine on macOS/Linux and the shipped plugin against QGIS 3.40 and 4.2,
+including the actual plugin-loader check above before engine setup. A separate
+package job validates the install ZIP without requiring QGIS or an engine.
 Configured CI is not evidence of a successful run.
 
 ## Local release record
+
+Release-download verification on 2026-10-21, macOS Apple Silicon:
+
+- Both published 0.1.5 installer assets are identical, match `SHA256SUMS`, and
+  contain the expected `obia_qgis/` package. Their SHA256 is
+  `6800879da0565421f00b443385ab5dc8237ce3d21ac13c93262e855d58625b68`.
+- The downloaded installer passed discovery, loading, startup, registration of
+  all ten algorithms, and unloading in QGIS 3.40.3 / Qt 5 and 4.2.3 / Qt 6.
+- GitHub's automatic source ZIP reproduced `No module named 'obia-qgis-0'`;
+  the archive checker rejects that ZIP before installation.
+- Local builds were reproducible and their versioned/unversioned assets matched.
+  Only installation/verification documentation differs from the published ZIP;
+  its plugin and engine code is unchanged. The published assets are retained.
 
 Verification for 0.1.5 on 2026-10-21, macOS Apple Silicon:
 

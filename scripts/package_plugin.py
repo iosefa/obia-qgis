@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import zipfile
 
+from check_plugin_zip import check_archive
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = "obia_qgis"
 FILES = [
@@ -68,6 +70,7 @@ def build():
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, path.read_bytes())
+    check_archive(output)
     (output.parent / f"{PLUGIN}.zip").write_bytes(output.read_bytes())
     print(output)
     return output
