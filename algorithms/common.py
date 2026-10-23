@@ -29,6 +29,7 @@ class Algorithm(QgsProcessingAlgorithm):
     TITLE = ""
     GROUP = "Objects"
     HELP = ""
+    MEMORY_HELP = "The full raster is read into memory. Start with a clipped study area."
 
     def name(self):
         return self.ID
@@ -53,7 +54,8 @@ class Algorithm(QgsProcessingAlgorithm):
             "<p>Requires the private OBIA 0.2.0 engine. Install it once from "
             "Plugins → OBIA → Set up OBIA. Raster band selectors use QGIS band numbers "
             "(1 is the first band); OBIA feature names use zero-based positions (b0 is band 1). "
-            "The full raster is read into memory. Start with a clipped study area.</p>"
+            + self.MEMORY_HELP
+            + "</p>"
         )
 
     def add(self, parameter, advanced=False):

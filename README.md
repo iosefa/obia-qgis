@@ -5,14 +5,14 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.5 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.6 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Download [obia_qgis-0.1.5.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.5/obia_qgis-0.1.5.zip)
+1. Download [obia_qgis-0.1.6.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.6/obia_qgis-0.1.6.zip)
    from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest).
    Choose the asset labelled **INSTALL IN QGIS**.
    **Do not install GitHub's automatic “Source code (zip)” download**:
@@ -30,7 +30,7 @@ release has been tested.
 
 If QGIS reports `No module named 'obia-qgis-0'`, uninstall the failed source
 archive through the plugin manager, restart QGIS, and install the linked
-`obia_qgis-0.1.5.zip`. The installer contains one top-level `obia_qgis/` folder.
+`obia_qgis-0.1.6.zip`. The installer contains one top-level `obia_qgis/` folder.
 An existing OBIA engine can be reused.
 
 This follows the PyForestScan plugin's Install-from-ZIP and engine setup
@@ -114,6 +114,28 @@ All band selectors use QGIS's **one-based** numbering. OBIA's output column name
 retain its **zero-based** convention: `b0_mean` means the mean of QGIS band 1,
 and `b3_std` means the standard deviation of QGIS band 4.
 
+## Large rasters with SLIC
+
+Use **Tiled SLIC segmentation** (`obia:slic_tiled`) to avoid loading the entire
+raster into memory. Start with **Tile size = 512 pixels**, **Overlap buffer = 64
+pixels**, and **Approximate objects per full tile = 1000**. The buffer must be
+smaller than the tile size. Reduce the tile size if memory is limited. The
+object count scales with included pixel area in buffered and partial tiles.
+
+Only selected bands in one buffered tile are read at a time. Objects, band
+means/standard deviations/counts, and the optional segment-ID raster are written
+incrementally. IDs are unique across the raster; source NoData and the optional
+aligned inclusion mask are respected. Save outputs to a disk with enough free
+space for both results and staging files.
+
+Each buffered tile is normalized independently, then clipped to its central
+tile. **Objects are split at tile boundaries; adjacent objects are not merged.**
+Overlap supplies context for SLIC but does not remove these cuts. Results differ
+from whole-raster SLIC, so inspect tile seams on a representative area first.
+The other segmentation, feature extraction, and pixel classification tools still
+load full raster data; tiling here does not make those later steps use tiles.
+The initial tiled objects already contain the basic predictors for object classification.
+
 ## Toolbox tools
 
 All algorithm IDs have the prefix `obia:`. Help links open the bundled
@@ -122,6 +144,7 @@ All algorithm IDs have the prefix `obia:`. Help links open the bundled
 | Tool | ID | Outputs |
 | --- | --- | --- |
 | SLIC segmentation | `slic` | Objects, optional segment-ID raster |
+| Tiled SLIC segmentation | `slic_tiled` | Objects, optional segment-ID raster; processed in buffered tiles |
 | Felzenszwalb segmentation | `felzenszwalb` | Objects, optional segment-ID raster |
 | Quickshift segmentation | `quickshift` | Objects, optional segment-ID raster |
 | Watershed segmentation | `watershed` | Objects, optional segment-ID raster |
@@ -195,9 +218,10 @@ cells are read. Matrix counts are pixels, not polygon counts or area-weighted co
   when pixels from a training area should stay together.
 - Predictor fields must be numeric and present in both object and training
   layers. Exclude labels, IDs, grouping fields, and previous predictions.
-- Raster loading, segmentation, feature extraction, and result arrays use memory
-  for the full input area. Prediction batching does not make the whole workflow
-  out-of-core. Clip/reproject rasters in QGIS before processing large scenes.
+- **Tiled SLIC segmentation** bounds raster and object memory by tile size.
+  Other segmentation, feature extraction, and pixel classification tools load
+  the full raster. Prediction batching does not make those workflows out-of-core.
+  Clip/reproject rasters in QGIS before those steps on large scenes.
 - Outputs are new GeoPackages, GeoTIFFs, and HTML reports. Input paths cannot be
   reused as outputs. Each completed file is staged before replacement, but a
   canceled multi-output job may retain a completed output or staging file.

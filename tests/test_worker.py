@@ -140,6 +140,236 @@ class ScientificTests(unittest.TestCase):
                 self.assertIn("b1_mean", objects)
                 self.assertNotIn("b0_mean", objects)
 
+    def tiled(self, **parameters):
+        payload = dict(
+            raster=str(self.raster),
+            tile_size=16,
+            buffer=4,
+            options=dict(n_segments=8, compactness=1, convert2lab=False),
+            output=str(self.d / "tiled.gpkg"),
+            labels=str(self.d / "tiled.tif"),
+        )
+        payload.update(parameters)
+        return self.jobs.segment_tiled_raster(payload)
+
+    def test_tiled_single_tile_matches_whole_raster_slic(self):
+        result = self.tiled(
+            tile_size=32,
+            buffer=8,
+            options=dict(n_segments=16, compactness=1, convert2lab=False),
+        )
+        self.assertEqual(result["tiles"], 1)
+        with (
+            self.rasterio.open(result["labels"]) as tiled,
+            self.rasterio.open(self.d / "ids.tif") as whole,
+        ):
+            self.np.testing.assert_array_equal(tiled.read(1), whole.read(1))
+        actual, expected = (
+            self.gpd.read_file(result["output"]),
+            self.gpd.read_file(self.objects),
+        )
+        self.np.testing.assert_allclose(actual.b0_mean, expected.b0_mean)
+        self.assertTrue(
+            actual.geometry.geom_equals_exact(expected.geometry, 1e-9).all()
+        )
+
+    def test_tiled_windows_masks_partial_edges_and_statistics(self):
+        from affine import Affine
+        from rasterio.features import rasterize
+
+        np, rasterio = self.np, self.rasterio
+        height, width = 37, 35
+        yy, xx = np.mgrid[:height, :width]
+        values = (xx * 2 + yy * 0.2).astype("float32")
+        values[20:23, 25] = np.nan
+        values[25, 20:23] = -9999
+        mask = np.ones((height, width), dtype="float32")
+        mask[:19, :19] = (
+            0  # Entire first tile is empty; later tiles must append correctly.
+        )
+        mask[10:25, 20:23] = 0
+        mask[28, 29] = -9999
+        mask[30, 31] = np.nan
+        expected_valid = (
+            np.isfinite(values) & (values != -9999) & np.isfinite(mask) & (mask > 0)
+        )
+        mask_path = self.d / "mask.tif"
+        original_open = rasterio.open
+
+        for rotated in (False, True):
+            with self.subTest(rotated=rotated):
+                transform = self.transform * (
+                    Affine.rotation(17) if rotated else Affine.identity()
+                )
+                profile = dict(
+                    driver="GTiff",
+                    height=height,
+                    width=width,
+                    dtype="float32",
+                    crs="EPSG:32605",
+                    transform=transform,
+                    nodata=-9999,
+                )
+                with original_open(self.raster, "w", count=2, **profile) as dst:
+                    dst.write(np.full(values.shape, -9999, dtype="float32"), 1)
+                    dst.write(
+                        values, 2
+                    )  # Invalid unselected band must not exclude pixels.
+                with original_open(mask_path, "w", count=1, **profile) as dst:
+                    dst.write(mask, 1)
+                reads = []
+                test = self
+
+                class WindowReader:
+                    def __init__(self, dataset):
+                        self.dataset = dataset
+
+                    def __getattr__(self, name):
+                        return getattr(self.dataset, name)
+
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, *args):
+                        self.dataset.close()
+
+                    def read(self, *args, **kwargs):
+                        window = kwargs.get("window")
+                        test.assertIsNotNone(
+                            window, "Tiled processing attempted a whole-raster read"
+                        )
+                        test.assertLessEqual(window.width, 27)
+                        test.assertLessEqual(window.height, 27)
+                        reads.append(window)
+                        return self.dataset.read(*args, **kwargs)
+
+                def guarded_open(path, mode="r", **kwargs):
+                    dataset = original_open(path, mode, **kwargs)
+                    return WindowReader(dataset) if mode == "r" else dataset
+
+                with (
+                    patch.object(rasterio, "open", side_effect=guarded_open),
+                    patch.object(
+                        self.jobs,
+                        "image_source",
+                        side_effect=AssertionError("Whole-image loader used"),
+                    ),
+                ):
+                    result = self.tiled(tile_size=19, bands=[2], mask=str(mask_path))
+                self.assertEqual(result["tiles"], 4)
+                self.assertEqual(len(reads), 8)
+                objects = self.gpd.read_file(result["output"])
+                self.assertEqual(len(objects), result["objects"])
+                self.assertTrue(objects.segment_id.is_unique)
+                self.assertTrue(objects.geometry.is_valid.all())
+                self.assertNotIn("b0_mean", objects)
+                with original_open(result["labels"]) as src:
+                    ids = src.read(1)
+                    self.assertEqual(src.transform, transform)
+                    self.assertEqual(src.crs.to_epsg(), 32605)
+                    self.assertEqual(src.nodata, 0)
+                    self.assertEqual(ids.shape, (height, width))
+                np.testing.assert_array_equal(ids > 0, expected_valid)
+                np.testing.assert_array_equal(
+                    ids,
+                    rasterize(
+                        zip(objects.geometry, objects.segment_id),
+                        out_shape=ids.shape,
+                        transform=transform,
+                    ),
+                )
+                self.assertAlmostEqual(
+                    objects.geometry.area.sum(), expected_valid.sum()
+                )
+                for obj in objects.itertuples():
+                    samples = values[ids == obj.segment_id].astype(float)
+                    self.assertEqual(obj.b1_valid_count, len(samples))
+                    self.assertAlmostEqual(obj.b1_mean, samples.mean())
+                    self.assertAlmostEqual(obj.b1_std, samples.std())
+
+    def test_tiled_reordered_bands_and_optional_labels(self):
+        result = self.tiled(
+            bands=[2, 1],
+            buffer=0,
+            labels="",
+            options=dict(n_segments=8, compactness=1, slic_zero=True, sigma=0.5),
+        )
+        objects = self.gpd.read_file(result["output"])
+        self.assertFalse((self.d / "tiled.tif").exists())
+        self.np.testing.assert_allclose(
+            objects.b1_mean, objects.b0_mean * 2 + 10, rtol=1e-6
+        )
+        self.np.testing.assert_allclose(objects.b1_std, objects.b0_std * 2, rtol=1e-6)
+
+    def test_tiled_empty_and_single_pixel_masks(self):
+        mask_path = self.d / "empty.tif"
+        mask = self.np.zeros((32, 32), dtype="uint8")
+        with self.rasterio.open(self.raster) as src:
+            profile = src.profile.copy()
+        profile.update(count=1, dtype="uint8", nodata=0)
+        with self.rasterio.open(mask_path, "w", **profile) as dst:
+            dst.write(mask, 1)
+        with self.assertRaisesRegex(ValueError, "No objects"):
+            self.tiled(mask=str(mask_path))
+        self.assertFalse((self.d / "tiled.gpkg").exists())
+        self.assertFalse((self.d / "tiled.tif").exists())
+        mask[-1, -1] = 1
+        with self.rasterio.open(mask_path, "w", **profile) as dst:
+            dst.write(mask, 1)
+        result = self.tiled(mask=str(mask_path))
+        self.assertEqual(result["objects"], 1)
+        self.assertEqual(
+            self.gpd.read_file(result["output"]).b0_valid_count.tolist(), [1]
+        )
+        self.assertEqual(list(self.d.glob(".obia-*")), [])
+
+    def test_tiled_validation_and_failed_tile_preserve_outputs(self):
+        for parameters, message in (
+            ({"tile_size": 0}, "Tile size"),
+            ({"tile_size": 16.5}, "Tile size"),
+            ({"buffer": -1}, "Overlap buffer"),
+            ({"buffer": 16}, "smaller"),
+            ({"options": {"n_segments": 0}}, "Objects per tile"),
+            ({"method": "quickshift"}, "SLIC only"),
+            ({"bands": [3]}, "Band numbers"),
+            ({"output": str(self.raster)}, "distinct output"),
+        ):
+            with (
+                self.subTest(parameters=parameters),
+                self.assertRaisesRegex(ValueError, message),
+            ):
+                self.tiled(**parameters)
+        with self.rasterio.open(self.raster) as src:
+            profile = src.profile.copy()
+        profile.update(width=16, count=1)
+        mask_path = self.d / "misaligned.tif"
+        with self.rasterio.open(mask_path, "w", **profile) as dst:
+            dst.write(self.np.ones((32, 16), dtype="float32"), 1)
+        with self.assertRaisesRegex(ValueError, "mask must match"):
+            self.tiled(mask=str(mask_path))
+
+        from obia.segmentation import segment_boundaries
+
+        create_labels = segment_boundaries.create_labels
+        calls = []
+
+        def fail_second_tile(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 2:
+                raise ValueError("test tile failure")
+            return create_labels(*args, **kwargs)
+
+        for name in ("tiled.gpkg", "tiled.tif"):
+            (self.d / name).write_bytes(b"existing output")
+        with patch.object(
+            segment_boundaries, "create_labels", side_effect=fail_second_tile
+        ):
+            with self.assertRaisesRegex(ValueError, "test tile failure"):
+                self.tiled()
+        for name in ("tiled.gpkg", "tiled.tif"):
+            self.assertEqual((self.d / name).read_bytes(), b"existing output")
+        self.assertEqual(list(self.d.glob(".obia-*")), [])
+
     def test_features_ndvi_shape_and_texture(self):
         output = self.d / "features.gpkg"
         self.jobs.extract_features(
