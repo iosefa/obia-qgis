@@ -9,6 +9,7 @@ from .common import Algorithm
 class Segmentation(Algorithm):
     GROUP = "Segmentation"
     METHOD = "slic"
+    TILED = False
     HELP = (
         "<p>Create object polygons and band mean, standard deviation, and valid-count fields. "
         "Optionally save matching segment IDs as a GeoTIFF; zero is NoData. Source masks are "
@@ -20,9 +21,18 @@ class Segmentation(Algorithm):
         self.raster_parameters()
         if self.METHOD == "slic":
             self.number(
-                "SEGMENTS", "Approximate number of objects", 1000, 1, integer=True
+                "SEGMENTS",
+                "Approximate objects per full tile"
+                if self.TILED
+                else "Approximate number of objects",
+                1000,
+                1,
+                integer=True,
             )
             self.number("COMPACTNESS", "Compactness", 10, 0.000001)
+            if self.TILED:
+                self.number("TILE_SIZE", "Tile size (pixels)", 512, 16, integer=True)
+                self.number("BUFFER", "Overlap buffer (pixels)", 64, 0, integer=True)
             self.number("SIGMA", "Smoothing sigma (pixels)", 0, advanced=True)
             self.add(
                 QgsProcessingParameterBoolean(
@@ -84,11 +94,37 @@ class Segmentation(Algorithm):
             output=self.parameterAsOutputLayer(p, "OUTPUT", c),
             labels=self.parameterAsOutputLayer(p, "LABELS", c),
         )
-        return "segment", payload, {"OUTPUT": "output", "LABELS": "labels"}
+        if self.TILED:
+            payload.update(
+                tile_size=self.parameterAsInt(p, "TILE_SIZE", c),
+                buffer=self.parameterAsInt(p, "BUFFER", c),
+            )
+        return (
+            "segment_tiled" if self.TILED else "segment",
+            payload,
+            {"OUTPUT": "output", "LABELS": "labels"},
+        )
 
 
 class SlicSegmentation(Segmentation):
     ID, TITLE, METHOD = "slic", "SLIC segmentation", "slic"
+
+
+class TiledSlicSegmentation(Segmentation):
+    ID, TITLE = "slic_tiled", "Tiled SLIC segmentation"
+    TILED = True
+    MEMORY_HELP = "Only one buffered tile and its objects are held in memory at a time."
+    HELP = (
+        "<p>Segment large rasters in tiles. Start with 512-pixel tiles and a 64-pixel "
+        "overlap buffer; the buffer must be smaller than the tile size. The object "
+        "count applies to a full tile and scales with included pixel area in each "
+        "buffered window. Smaller tiles use less memory.</p>"
+        "<p>Each buffered tile is normalized independently. Only its central tile is "
+        "saved: objects are split at tile boundaries, with no cross-tile merging. "
+        "Results differ from whole-raster SLIC; inspect seams on a representative "
+        "area first. GeoPackage objects and optional GeoTIFF IDs are written "
+        "incrementally, with unique IDs across all tiles.</p>" + Segmentation.HELP
+    )
 
 
 class FelzenszwalbSegmentation(Segmentation):

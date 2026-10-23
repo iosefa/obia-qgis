@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.6
+
+- Add **Tiled SLIC segmentation** (`obia:slic_tiled`) with tile size, overlap
+  buffer, approximate objects per full tile, band selection, masks, and SLICO.
+- Read only selected bands in buffered windows and write GeoPackage objects
+  and optional segment-ID GeoTIFFs incrementally. Preserve source georeferencing,
+  NoData/masks, unique IDs, and band means, standard deviations, and valid counts.
+- Clip results to disjoint tile cores and split objects at tile boundaries;
+  normalize each buffered tile separately. Document the differences from
+  whole-raster SLIC and the need to inspect seams.
+- Reuse the unchanged OBIA 0.2.0 label and feature APIs and existing engine.
+  The experimental upstream checkerboard tiling helper is not used.
+- Validate the install ZIP with all eleven Processing tools. Prepare one
+  versioned plugin ZIP for the release attachment.
+
 ## 0.1.5
 
 - Remove the hard-coded OBIA version from the engine setup introduction.

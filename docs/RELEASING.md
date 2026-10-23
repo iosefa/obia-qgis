@@ -24,7 +24,7 @@
    Python syntax. With each supported QGIS Python environment, run
    `python scripts/check_plugin_zip.py dist/obia_qgis.zip --qgis` to discover,
    load, start, and unload the extracted package through QGIS's normal plugin
-   loader and verify all ten Processing algorithms. Loading source under a
+   loader and verify all eleven Processing algorithms. Loading source under a
    supplied import alias can conceal an invalid ZIP folder name.
 6. After the commit's Actions checks pass, publish a matching `vVERSION` GitHub
    release with **one attachment**, `dist/obia_qgis-VERSION.zip`. The local

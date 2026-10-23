@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.5 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.6 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Download <code>obia_qgis-0.1.5.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
+<ol><li>Download <code>obia_qgis-0.1.6.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -52,6 +52,20 @@ Advanced settings include smoothing sigma in pixels and SLICO adaptive compactne
 <p>All segmentation tools normalize selected bands independently to [0, 1], with RGB-to-Lab conversion disabled.
 An empty band selection means all bands. Optional masks must match the source grid; nonzero valid pixels are included.
 Source NoData and nonfinite selected-band values are excluded. The optional GeoTIFF contains the same segment IDs; zero is NoData.</p>
+
+<h2 id="slic_tiled">Tiled SLIC segmentation</h2>
+<p><code>obia:slic_tiled</code> processes large rasters one buffered tile at a time. Start with a <b>512-pixel tile size</b>,
+<b>64-pixel overlap buffer</b>, and <b>1000 approximate objects per full tile</b>. The buffer must be smaller than the tile size.
+Reduce tile size to use less memory. The object count scales with included pixel area in buffered and partial tiles.</p>
+<p>Selected bands, source NoData, an optional aligned mask, compactness, smoothing, and SLICO work as in the ordinary SLIC tool.
+Only selected bands are read. Polygons with means, standard deviations, and valid counts are appended to a GeoPackage;
+the optional GeoTIFF is written window by window. Segment IDs are unique across all tiles and agree between both outputs.</p>
+<p class="note">Each buffered tile is normalized independently and clipped to its central tile.
+<b>Objects are split at tile boundaries and are not merged across tiles.</b> The buffer supplies surrounding context but does not
+remove these cuts. Results differ from whole-raster SLIC; inspect seams on a representative area before running a full scene.</p>
+<p>Allow disk space for the outputs and staging files. This tool bounds raster and object memory by tile size.
+Other feature extraction and pixel classification tools still load full raster data; the tiled objects already include basic predictors
+for object classification.</p>
 
 <h2 id="felzenszwalb">Felzenszwalb segmentation</h2>
 <p><code>obia:felzenszwalb</code> uses graph-based regions. Larger scale generally makes larger objects.
@@ -141,7 +155,8 @@ Raster renderer changes, the map view, and the project CRS do not change analysi
 <p>Vectors honor Processing's selected-features option, filters, and pending edits. Supply valid polygons or single points with a CRS.
 Existing object segment IDs must be unique and non-null; missing IDs are generated. Label polygons need no object IDs or predictor fields.
 Raster masks must already be aligned to the source grid.</p>
-<p>Full raster data and outputs occupy memory. Prediction batching does not make the workflow out-of-core. Clip large images first.
+<p>Use <a href="#slic_tiled">Tiled SLIC segmentation</a> for segmentation with memory bounded by tile size.
+Other segmentation, feature extraction, and pixel classification tools load full raster data. Prediction batching does not make those workflows out-of-core. Clip large images first.
 Use QGIS for clipping, reprojection, mosaicking, rasterization, and styling.</p>
 <p>Choose distinct output paths separate from all inputs. Vector outputs are GeoPackages, rasters are GeoTIFFs, and reports are HTML.
 Each completed file is staged before replacement. Canceling a multi-output job can retain a completed file or a hidden staging file.</p>

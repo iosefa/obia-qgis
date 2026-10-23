@@ -107,6 +107,7 @@ def check_qgis(path):
             algorithms = sorted(algorithm.id() for algorithm in provider.algorithms())
             for name in (
                 "slic",
+                "slic_tiled",
                 "felzenszwalb",
                 "quickshift",
                 "watershed",

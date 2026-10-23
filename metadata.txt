@@ -2,8 +2,8 @@
 name=OBIA
 description=Object-based raster segmentation, features, labelling, and classification with OBIA 0.2.0.
 about=Simple Processing Toolbox tools for raster object and pixel analysis. Install the plugin ZIP, then open Plugins > OBIA > Set up OBIA to install its raster analysis engine. Setup needs internet and additional disk space; it never installs packages into QGIS. Engine manifests cover Windows x64, Linux x64, and macOS Intel/Apple Silicon. Includes offline help and MIT-licensed OBIA 0.2.0 source. See the bundled verification record for tested platforms. Point-cloud and experimental deep-learning tools are outside this plugin.
-version=0.1.5
-changelog=0.1.5: Simplify engine setup wording: remove the hard-coded OBIA version and use raster analysis engine instead of private engine throughout setup messages.
+version=0.1.6
+changelog=0.1.6: Add Tiled SLIC segmentation for large rasters with buffered window reads, incremental outputs, unique object IDs, and per-object band statistics.
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 author=Joseph Percival

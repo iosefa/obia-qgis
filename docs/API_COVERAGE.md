@@ -8,6 +8,7 @@ are installed.
 | --- | --- |
 | `handlers.geotif.open_geotiff`, `Image` | Internal raster reader with CRS, masks, and calibration checks |
 | `segmentation.create_labels`, `labels_to_segments` | Four simple region tools: SLIC/SLICO, Felzenszwalb, Quickshift, watershed |
+| Tiled SLIC via `create_labels`, `labels_to_segments`, `extract_features` | Plugin window adapter streams buffered tiles, clips to disjoint cores, and appends statistics/polygons and optional raster IDs; objects split at seams |
 | `segment`, `create_segments`, `create_objects` | Equivalent boundary + feature stages composed through public lower-level APIs; no duplicate toolbox entry |
 | Seeded random walker, flood, snakes/active contours | Python workflows requiring seed arrays/contours; not exposed in the simple dialogs |
 | `features.extract_features` | Band statistics, optional p10/p90, NDVI, all shape measurements, optional default GLCM features |
@@ -20,7 +21,8 @@ are installed.
 | `cross_validation_splits` | Python workflow; no cross-validation UI |
 | Other estimators, custom pipelines, spatial class restrictions, reusable models | Python workflow |
 | SHAP explanations | Optional extra omitted |
-| Tiling/image enhancement/cropping helpers | Use QGIS raster tools for preparation; Python for OBIA tile workflows |
+| `utils.tiling.create_tiled_segments` | Experimental checkerboard merger is not called: v0.2.0 duplicates explicit `n_segments` and assumes a mask when deriving counts. The plugin's separate tiled tool uses the unchanged core APIs instead |
+| Image enhancement/cropping helpers | Use QGIS raster tools for preparation |
 | Dataset helpers | Sample data retained with release source, no separate toolbox tool |
 | Point clouds, optional detection | Outside scope; no tools or extra dependencies |
 
