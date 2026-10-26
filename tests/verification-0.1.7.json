@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-26",
+  "plugin_version": "0.1.7",
+  "engine_version": "0.2.0-1",
+  "artifact": {
+    "filename": "obia_qgis-0.1.7.zip",
+    "bytes": 5762589,
+    "sha256": "1b82672d0453c137a8d894ccc72ddd3e8a951e685d6a146591b9e696fd45b501"
+  },
+  "platform": "macOS 15.5, Apple Silicon (osx-arm64)",
+  "checks": {
+    "installer_regressions": {
+      "passed": 37,
+      "skipped_windows_only": 2
+    },
+    "scientific_worker": {
+      "passed": 30
+    },
+    "qgis_3_40_integration": {
+      "passed": 10
+    },
+    "qgis_4_2_integration": {
+      "passed": 10
+    },
+    "zip_load_unload": {
+      "qgis": [
+        "3.40",
+        "4.2"
+      ],
+      "algorithms": 11,
+      "result": "passed"
+    },
+    "fresh_install_repair_cancellation": "passed using verified cached packages in a temporary root",
+    "fresh_install_first_validation_seconds": 82.8,
+    "stalled_import_stack_trace_and_timeout": "passed",
+    "silence_heartbeat_and_cancellation": "passed",
+    "timeout_log_survives_rollback": "passed",
+    "source_hashes_archive_crc_python_syntax_and_ruff": "passed"
+  },
+  "limits": [
+    "The two affected Macs were not available for testing.",
+    "Fresh installation reused verified downloads; network downloading was not retested.",
+    "Windows, Linux and Intel Mac installations were not rerun locally for this ZIP."
+  ],
+  "delivery": "Uploaded to /Iosefa Percival/00_INBOX/obia_qgis-0.1.7.zip before remaining integration results were reviewed, as requested."
+}

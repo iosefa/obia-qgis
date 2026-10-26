@@ -98,9 +98,23 @@ class ScientificTests(unittest.TestCase):
         return output
 
     def test_selftest_uses_real_scientific_operations(self):
-        result = call_with_python(sys.executable, "selftest", {}, timeout=120)
+        events = []
+        result = call_with_python(
+            sys.executable, "selftest", {}, timeout=600, event=events.append
+        )
         self.assertTrue(result["ready"])
         self.assertEqual(result["obia"], "0.2.0")
+        stages = [event for event in events if event.get("type") == "validation"]
+        self.assertEqual(stages[0]["message"], "Starting engine checks")
+        self.assertEqual(stages[-1]["message"], "Finishing engine checks")
+        self.assertIn("Loading GeoPandas", [event["message"] for event in stages])
+        self.assertIn(
+            "Testing pixel classification", [event["message"] for event in stages]
+        )
+        self.assertEqual(
+            [event["value"] for event in stages],
+            sorted(event["value"] for event in stages),
+        )
 
     def test_segmentation_labels_and_geometry_match(self):
         from rasterio.features import rasterize

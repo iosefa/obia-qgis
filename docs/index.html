@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.6 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.7 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Download <code>obia_qgis-0.1.6.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
+<ol><li>Download <code>obia_qgis-0.1.7.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -25,6 +25,11 @@ It shows download size and required free space. It does not install into QGIS or
 Internet is required initially; installed engines process local data offline. All downloads are HTTPS and SHA256 verified.</p>
 <p><b>Repair engine</b> builds and tests a new installation before activating it. Failure or cancellation keeps the previous working engine.
 <b>Remove engine</b> removes only recognized engine generations; verified downloads remain cached. Your data and projects are separate.</p>
+<p><b>Final engine check:</b> allow up to ten minutes. Setup shows the current library or test and elapsed time;
+it finishes immediately when the checks pass, and Cancel remains available. This limit applies only to setup and repair.</p>
+<p>If validation fails, the error identifies the last check and a <code>validation-*.log</code> file in the engine location.
+Select and copy the path from the setup message, then include the log when reporting the problem.
+The log survives failed-install cleanup and records startup steps and periodic thread stacks if the worker stalls.</p>
 <h3>Windows paths</h3>
 <p>The engine uses a short path outside your QGIS profile, normally <code>%LOCALAPPDATA%\obia\e</code>.
 Existing short directory names are used when available. Long profiles automatically fall back to <code>%USERPROFILE%\.obia-e</code>

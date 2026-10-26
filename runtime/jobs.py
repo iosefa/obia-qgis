@@ -14,6 +14,13 @@ def progress(value, message):
     )
 
 
+def validation(value, message):
+    print(
+        json.dumps({"type": "validation", "value": value, "message": message}),
+        flush=True,
+    )
+
+
 def bands(values, count):
     """QGIS band numbers are one-based; OBIA's feature positions are zero-based."""
     if not values:
@@ -922,15 +929,28 @@ def classify_pixels(p):
 
 
 def selftest(_):
+    validation(5, "Loading GeoPandas")
     import geopandas as gpd
+
+    validation(10, "Loading NumPy")
     import numpy as np
+
+    validation(15, "Loading Rasterio")
     import rasterio
+
+    validation(25, "Loading scikit-learn")
     import sklearn
+
+    validation(35, "Loading scikit-image")
     import skimage
+
+    validation(40, "Loading XGBoost")
     import xgboost
+
     from rasterio.transform import from_origin
     from shapely.geometry import Point
 
+    validation(45, "Writing a small test raster")
     with tempfile.TemporaryDirectory(prefix="obia-check-") as directory:
         d = Path(directory)
         raster = d / "input.tif"
@@ -947,6 +967,7 @@ def selftest(_):
             transform=from_origin(100, 200, 1, 1),
         ) as dst:
             dst.write((xx + (xx >= 12) * 50 + yy / 100).astype("float32"), 1)
+        validation(50, "Loading raster segmentation tools")
         segment_raster(
             dict(
                 raster=str(raster),
@@ -955,6 +976,7 @@ def selftest(_):
                 options=dict(n_segments=16, compactness=1, convert2lab=False),
             )
         )
+        validation(65, "Testing object features")
         extract_features(
             dict(
                 raster=str(raster),
@@ -964,6 +986,7 @@ def selftest(_):
                 texture=True,
             )
         )
+        validation(75, "Preparing test labels")
         objects = gpd.read_file(d / "features.gpkg")
         points = gpd.GeoDataFrame(
             {
@@ -976,6 +999,7 @@ def selftest(_):
             crs=objects.crs,
         )
         points.to_file(d / "points.gpkg", driver="GPKG", index=False)
+        validation(80, "Testing object labels")
         label_objects(
             dict(
                 objects=str(d / "features.gpkg"),
@@ -985,6 +1009,7 @@ def selftest(_):
                 mixed=str(d / "mixed.gpkg"),
             )
         )
+        validation(85, "Testing object classification")
         classify_objects(
             dict(
                 objects=str(d / "features.gpkg"),
@@ -996,6 +1021,7 @@ def selftest(_):
             )
         )
         # Also exercise the separately linked XGBoost runtime, raster writer, and class mapping.
+        validation(90, "Preparing pixel classification")
         pixel_points = gpd.GeoDataFrame(
             {"class": ["low", "low", "high", "high"]},
             geometry=[
@@ -1007,6 +1033,7 @@ def selftest(_):
             crs=objects.crs,
         )
         pixel_points.to_file(d / "pixels.gpkg", driver="GPKG", index=False)
+        validation(95, "Testing pixel classification")
         result = classify_pixels(
             dict(
                 raster=str(raster),
@@ -1019,6 +1046,7 @@ def selftest(_):
                 test_fraction=0,
             )
         )
+        validation(98, "Checking the classified raster")
         with rasterio.open(result["output"]) as src:
             if src.crs != objects.crs or src.nodata != 0 or not np.any(src.read(1) > 0):
                 raise RuntimeError("Raster classification self-test failed.")

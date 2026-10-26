@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.7
+
+- Allow up to ten minutes for the installation/repair validation, with immediate
+  completion when the checks pass. Keep cancellation and validation before activation.
+- Show library loading and each scientific check, with elapsed time even when
+  the worker is silent. Preserve the last named check when warnings are emitted.
+- Keep a diagnostic log for each validation attempt outside the temporary
+  generation, including periodic Python thread stacks if a check stalls. Errors
+  identify the last check and the log path, which can be selected and copied.
+- Retain tiled SLIC and all existing analysis workflows. Engine package locks,
+  the bundled OBIA 0.2.0 library, and normal processing deadlines are unchanged.
+
 ## 0.1.6
 
 - Add **Tiled SLIC segmentation** (`obia:slic_tiled`) with tile size, overlap

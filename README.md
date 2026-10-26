@@ -5,14 +5,14 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.6 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.7 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Download [obia_qgis-0.1.6.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.6/obia_qgis-0.1.6.zip)
+1. Download [obia_qgis-0.1.7.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.7/obia_qgis-0.1.7.zip)
    from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest).
    Choose the asset labelled **INSTALL IN QGIS**.
    **Do not install GitHub's automatic “Source code (zip)” download**:
@@ -30,7 +30,7 @@ release has been tested.
 
 If QGIS reports `No module named 'obia-qgis-0'`, uninstall the failed source
 archive through the plugin manager, restart QGIS, and install the linked
-`obia_qgis-0.1.6.zip`. The installer contains one top-level `obia_qgis/` folder.
+`obia_qgis-0.1.7.zip`. The installer contains one top-level `obia_qgis/` folder.
 An existing OBIA engine can be reused.
 
 This follows the PyForestScan plugin's Install-from-ZIP and engine setup
@@ -45,6 +45,15 @@ and pinned SHA256 checksums. An installed engine works offline on local data.
 the previous working installation if setup fails or is canceled. **Remove engine**
 only removes this plugin's recognized engine installations; verified downloads
 remain cached. Previous generations use additional space until removal.
+
+The final engine check allows up to **ten minutes** and shows the current step
+and elapsed time. It finishes immediately when validation passes; Cancel stays
+available. Restart QGIS after updating the plugin ZIP to load the new installer.
+If validation fails, the error names the last check and a `validation-*.log`
+file in the displayed engine location. Select and copy that path to find the
+log and include it when reporting a problem. Logs survive failed-install cleanup
+and record library loading, scientific checks, and periodic thread stacks during
+a stall. This setup deadline does not limit ordinary analysis jobs.
 
 Engine manifests cover Windows x64, Linux x64, macOS Intel, and macOS Apple
 Silicon. Windows/Linux ARM engines are not supplied. The setup dialog reports
