@@ -22,13 +22,21 @@ import ssl
 import stat
 import tempfile
 import time
+import traceback
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, build_opener
 import uuid
 
-from .client import EngineCanceled, EngineError, call_with_python, run_process
+from .client import (
+    EngineCanceled,
+    EngineError,
+    EngineTimeout,
+    call_with_python,
+    run_process,
+)
 
 ENGINE_VERSION = "0.2.0-1"
+VALIDATION_TIMEOUT = 600
 OWNER = "org.obia.qgis.engine"
 MARKER = ".obia-owned.json"
 HERE = Path(__file__).resolve().parent
@@ -708,6 +716,83 @@ def _sign_relocated_macos(prefix, cancel=None):
             )
 
 
+def _validate_engine(python, log_path, progress=None, cancel=None):
+    """Validate before activation, keeping diagnostics outside the generation.
+
+    A heartbeat updates elapsed time even while a native import is silent.
+    Only named progress events change the current step; warnings and stack
+    traces go to the log without replacing the useful status in the dialog.
+    """
+    started = time.monotonic()
+    step = "Starting engine Python"
+    value = 92
+    with Path(log_path).open("x", encoding="utf-8") as log:
+
+        def record(message):
+            log.write(f"{time.monotonic() - started:8.1f}s  {message}\n")
+            log.flush()
+
+        def show(_elapsed=None):
+            _check_cancel(cancel)
+            elapsed = int(time.monotonic() - started)
+            if progress:
+                progress(
+                    value,
+                    f"{step} — {elapsed // 60}:{elapsed % 60:02d} elapsed "
+                    f"(up to {VALIDATION_TIMEOUT // 60} minutes)",
+                )
+
+        def event(message):
+            nonlocal step, value
+            record(json.dumps(message, ensure_ascii=True))
+            if message.get("type") in {"progress", "validation"} and message.get(
+                "message"
+            ):
+                step = str(message["message"])
+                if message.get("type") == "validation":
+                    value = max(
+                        value, 92 + 4 * max(0, min(100, float(message["value"]))) / 100
+                    )
+                show()
+
+        record(
+            f"OBIA engine {ENGINE_VERSION}; {platform.platform()}; {platform.machine()}"
+        )
+        record(f"Python: {python}")
+        record(f"Validation limit: {VALIDATION_TIMEOUT} seconds")
+        record(step)
+        try:
+            show()
+            result = call_with_python(
+                python,
+                "selftest",
+                {},
+                cancel=cancel,
+                timeout=VALIDATION_TIMEOUT,
+                event=event,
+                tick=show,
+            )
+            if result.get("ready") is not True:
+                raise EngineError(
+                    "The new engine did not pass its scientific self-test; the previous engine is unchanged."
+                )
+            record("PASSED: " + json.dumps(result, sort_keys=True))
+            return result
+        except Exception as exc:
+            record(traceback.format_exc())
+            elapsed = time.monotonic() - started
+            if isinstance(exc, EngineTimeout):
+                detail = f"Engine verification timed out after {elapsed:.0f} seconds."
+            else:
+                detail = str(exc)
+            error_type = (
+                EngineCanceled if isinstance(exc, EngineCanceled) else EngineError
+            )
+            raise error_type(
+                f"{detail}\nLast check: {step}\nDiagnostic log: {log_path}"
+            ) from exc
+
+
 def install_engine(progress=None, cancel=None):
     """Install or repair; call on a worker thread, never the QGIS GUI thread.
 
@@ -843,21 +928,13 @@ def install_engine(progress=None, cancel=None):
                 )
             report(88, "Finalizing the engine installation")
             _sign_relocated_macos(prefix, cancel)
-            report(92, "Checking raster segmentation, features and classification")
-            result = call_with_python(
+            log_path = base / f"validation-{generation}.log"
+            result = _validate_engine(
                 _python(prefix),
-                "selftest",
-                {},
+                log_path,
+                progress=report,
                 cancel=cancel,
-                timeout=120,
-                event=lambda message: report(
-                    95, str(message.get("message", "Validating engine"))
-                ),
             )
-            if result.get("ready") is not True:
-                raise EngineError(
-                    "The new engine did not pass its scientific self-test; the previous engine is unchanged."
-                )
             report(97, "Cleaning temporary setup files")
             _remove_installer_cache(root)
             _check_cancel(cancel)
@@ -869,6 +946,7 @@ def install_engine(progress=None, cancel=None):
                     "engine_version": ENGINE_VERSION,
                     "lock_sha256": digest,
                     "selftest": result,
+                    "validation_log": log_path.name,
                     "created": time.time(),
                 },
             )

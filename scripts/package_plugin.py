@@ -35,7 +35,9 @@ def build():
             hashlib.sha256((ROOT / "vendor/obia" / name).read_bytes()).hexdigest()
             != digest
         ):
-            raise ValueError(f"Bundled OBIA release source changed: {name}")
+            raise ValueError(
+                f"Bundled OBIA source differs from its recorded hash: {name}"
+            )
     audit = json.loads((ROOT / "runtime/windows-paths.json").read_text())
     bootstrap = json.loads((ROOT / "runtime/bootstrap.json").read_text())
     if (

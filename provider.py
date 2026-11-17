@@ -5,8 +5,10 @@ from qgis.core import QgsProcessingProvider
 
 from .algorithms.segmentation import (
     SlicSegmentation,
+    TiledSlicSegmentation,
     FelzenszwalbSegmentation,
     QuickshiftSegmentation,
+    TiledQuickshiftSegmentation,
     WatershedSegmentation,
 )
 from .algorithms.features import ExtractFeatures
@@ -31,8 +33,10 @@ class OBIAProvider(QgsProcessingProvider):
     def loadAlgorithms(self):
         for cls in (
             SlicSegmentation,
+            TiledSlicSegmentation,
             FelzenszwalbSegmentation,
             QuickshiftSegmentation,
+            TiledQuickshiftSegmentation,
             WatershedSegmentation,
             ExtractFeatures,
             LabelObjects,

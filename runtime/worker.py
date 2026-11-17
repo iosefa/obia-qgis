@@ -1,6 +1,7 @@
 """One isolated process per operation; no scientific modules enter QGIS."""
 
 import argparse
+import faulthandler
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,6 @@ def main():
     args = parser.parse_args()
     code = 0
     try:
-        configure_runtime()
         request = json.loads(args.request.read_text(encoding="utf-8"))
         if (
             not isinstance(request, dict)
@@ -37,9 +37,36 @@ def main():
             or not isinstance(request.get("payload"), dict)
         ):
             raise ValueError("Incompatible OBIA worker request.")
+        if request.get("operation") == "selftest":
+            # A native import can block before Python raises an exception. Keep
+            # periodic thread stacks in the parent's validation log until exit.
+            faulthandler.enable()
+            faulthandler.dump_traceback_later(60, repeat=True)
+            print(
+                json.dumps(
+                    {
+                        "type": "validation",
+                        "value": 0,
+                        "message": "Starting engine checks",
+                    }
+                ),
+                flush=True,
+            )
+        configure_runtime()
         from jobs import dispatch
 
         result = dispatch(request["operation"], request["payload"])
+        if request["operation"] == "selftest":
+            print(
+                json.dumps(
+                    {
+                        "type": "validation",
+                        "value": 100,
+                        "message": "Finishing engine checks",
+                    }
+                ),
+                flush=True,
+            )
         response = {"protocol": 1, "ok": True, "result": result}
     except Exception as exc:
         traceback.print_exc(file=sys.stderr)

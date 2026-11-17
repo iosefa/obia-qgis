@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.1.8
+
+- Add **Tiled Quickshift segmentation** (`obia:quickshift_tiled`) with tile size,
+  overlap buffer, band selection, inclusion mask, kernel size, maximum distance,
+  color-to-space ratio, and optional smoothing.
+- Use OBIA's merged checkerboard implementation: preserve objects crossing a
+  buffered window's outside edge, replace wholly contained objects only after
+  coverage succeeds, and clip every mixed label to the saved boolean mask.
+- Calculate band means, population standard deviations, valid counts, and optional
+  GeoTIFF segment IDs from final objects using windowed reads. Objects spanning
+  tile boundaries keep one ID and complete statistics.
+- Bundle the exact OBIA source at commit `38ecc04`, based on 0.2.0 with the upstream
+  Quickshift changes. Record source provenance and per-file SHA256 hashes.
+- Keep the existing engine package locks, installation paths, ten-minute setup
+  validation, and tiled SLIC workflow. No engine reinstall is required.
+- Processing remains sequential. Raster reads are bounded by tile size, while
+  checkerboard object geometries and statistics grow with the object count.
+
+## 0.1.7
+
+- Allow up to ten minutes for the installation/repair validation, with immediate
+  completion when the checks pass. Keep cancellation and validation before activation.
+- Show library loading and each scientific check, with elapsed time even when
+  the worker is silent. Preserve the last named check when warnings are emitted.
+- Keep a diagnostic log for each validation attempt outside the temporary
+  generation, including periodic Python thread stacks if a check stalls. Errors
+  identify the last check and the log path, which can be selected and copied.
+- Retain tiled SLIC and all existing analysis workflows. Engine package locks,
+  the bundled OBIA 0.2.0 library, and normal processing deadlines are unchanged.
+
+## 0.1.6
+
+- Add **Tiled SLIC segmentation** (`obia:slic_tiled`) with tile size, overlap
+  buffer, approximate objects per full tile, band selection, masks, and SLICO.
+- Read only selected bands in buffered windows and write GeoPackage objects
+  and optional segment-ID GeoTIFFs incrementally. Preserve source georeferencing,
+  NoData/masks, unique IDs, and band means, standard deviations, and valid counts.
+- Clip results to disjoint tile cores and split objects at tile boundaries;
+  normalize each buffered tile separately. Document the differences from
+  whole-raster SLIC and the need to inspect seams.
+- Reuse the unchanged OBIA 0.2.0 label and feature APIs and existing engine.
+  The experimental upstream checkerboard tiling helper is not used.
+- Validate the install ZIP with all eleven Processing tools. Prepare one
+  versioned plugin ZIP for the release attachment.
+
 ## 0.1.5
 
 - Remove the hard-coded OBIA version from the engine setup introduction.

@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.5 · bundled OBIA 0.2.0 · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.8 · OBIA 0.2.0 with upstream tiled Quickshift support · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Download <code>obia_qgis-0.1.5.zip</code> from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest release</a>.
+<ol><li>Use the built <code>obia_qgis-0.1.8.zip</code>, or an installable plugin ZIP from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest published release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -25,6 +25,11 @@ It shows download size and required free space. It does not install into QGIS or
 Internet is required initially; installed engines process local data offline. All downloads are HTTPS and SHA256 verified.</p>
 <p><b>Repair engine</b> builds and tests a new installation before activating it. Failure or cancellation keeps the previous working engine.
 <b>Remove engine</b> removes only recognized engine generations; verified downloads remain cached. Your data and projects are separate.</p>
+<p><b>Final engine check:</b> allow up to ten minutes. Setup shows the current library or test and elapsed time;
+it finishes immediately when the checks pass, and Cancel remains available. This limit applies only to setup and repair.</p>
+<p>If validation fails, the error identifies the last check and a <code>validation-*.log</code> file in the engine location.
+Select and copy the path from the setup message, then include the log when reporting the problem.
+The log survives failed-install cleanup and records startup steps and periodic thread stacks if the worker stalls.</p>
 <h3>Windows paths</h3>
 <p>The engine uses a short path outside your QGIS profile, normally <code>%LOCALAPPDATA%\obia\e</code>.
 Existing short directory names are used when available. Long profiles automatically fall back to <code>%USERPROFILE%\.obia-e</code>
@@ -53,6 +58,20 @@ Advanced settings include smoothing sigma in pixels and SLICO adaptive compactne
 An empty band selection means all bands. Optional masks must match the source grid; nonzero valid pixels are included.
 Source NoData and nonfinite selected-band values are excluded. The optional GeoTIFF contains the same segment IDs; zero is NoData.</p>
 
+<h2 id="slic_tiled">Tiled SLIC segmentation</h2>
+<p><code>obia:slic_tiled</code> processes large rasters one buffered tile at a time. Start with a <b>512-pixel tile size</b>,
+<b>64-pixel overlap buffer</b>, and <b>1000 approximate objects per full tile</b>. The buffer must be smaller than the tile size.
+Reduce tile size to use less memory. The object count scales with included pixel area in buffered and partial tiles.</p>
+<p>Selected bands, source NoData, an optional aligned mask, compactness, smoothing, and SLICO work as in the ordinary SLIC tool.
+Only selected bands are read. Polygons with means, standard deviations, and valid counts are appended to a GeoPackage;
+the optional GeoTIFF is written window by window. Segment IDs are unique across all tiles and agree between both outputs.</p>
+<p class="note">Each buffered tile is normalized independently and clipped to its central tile.
+<b>Objects are split at tile boundaries and are not merged across tiles.</b> The buffer supplies surrounding context but does not
+remove these cuts. Results differ from whole-raster SLIC; inspect seams on a representative area before running a full scene.</p>
+<p>Allow disk space for the outputs and staging files. This tool bounds raster and object memory by tile size.
+Other feature extraction and pixel classification tools still load full raster data; the tiled objects already include basic predictors
+for object classification.</p>
+
 <h2 id="felzenszwalb">Felzenszwalb segmentation</h2>
 <p><code>obia:felzenszwalb</code> uses graph-based regions. Larger scale generally makes larger objects.
 Set smoothing sigma and minimum region size in pixels. Outputs and band/mask behavior match SLIC.</p>
@@ -61,6 +80,23 @@ Set smoothing sigma and minimum region size in pixels. Outputs and band/mask beh
 <p><code>obia:quickshift</code> uses mode-seeking regions. Kernel size, maximum distance, and the color-to-space ratio control grouping.
 Outputs and band/mask behavior match SLIC. Quickshift and Felzenszwalb operate on the prepared image, then clip results to the mask;
 pixels outside the mask can affect nearby segmentation boundaries.</p>
+
+<h2 id="quickshift_tiled">Tiled Quickshift segmentation</h2>
+<p><code>obia:quickshift_tiled</code> uses OBIA's checkerboard overlap replacement. Start with <b>512-pixel tiles</b>,
+a <b>64-pixel buffer</b>, <b>kernel size 3</b>, <b>maximum distance 6</b>, and <b>color-to-space ratio 0.5</b>.
+Kernel size must be at least 1. The buffer must be smaller than the tile size. An aligned inclusion mask and smoothing sigma are advanced settings.</p>
+<p>Black tiles are segmented first. Buffered white tiles replace objects wholly inside their windows, allowing new objects to cross
+the original tile boundaries. Objects crossing a buffered window's outside edge stay intact and are masked out of the new segmentation.
+Objects are replaced only after the included pixels are covered. A buffer too narrow to contain an object keeps it intact.</p>
+<p>Quickshift fills excluded pixels with a distinct finite value. Every resulting label is clipped to the saved boolean mask;
+mixed labels retain all their valid pixels and disconnected pieces get separate IDs. The fill is excluded from normalization
+and smoothing. Source NoData, source masks, and the optional inclusion mask are respected.</p>
+<p>Final polygons include band means, population standard deviations, and valid counts. Optional GeoTIFF IDs match those polygons,
+including objects crossing tile boundaries. Statistics and IDs are calculated with windowed reads, and outputs are staged until processing completes.</p>
+<p class="note">Processing is sequential. Raster pixels are read in windows, but accepted geometries and statistics accumulate in memory
+as the object count increases. The segmentation stage may take time before progress advances to statistics.
+Each tile is normalized independently; limited overlap and the fill can influence boundaries. Inspect seams on a small area first.
+Results need not match whole-raster Quickshift.</p>
 
 <h2 id="watershed">Watershed segmentation</h2>
 <p><code>obia:watershed</code> requires exactly one selected band. It floods low values in that surface first.
@@ -141,13 +177,14 @@ Raster renderer changes, the map view, and the project CRS do not change analysi
 <p>Vectors honor Processing's selected-features option, filters, and pending edits. Supply valid polygons or single points with a CRS.
 Existing object segment IDs must be unique and non-null; missing IDs are generated. Label polygons need no object IDs or predictor fields.
 Raster masks must already be aligned to the source grid.</p>
-<p>Full raster data and outputs occupy memory. Prediction batching does not make the workflow out-of-core. Clip large images first.
+<p>Use <a href="#slic_tiled">Tiled SLIC segmentation</a> or <a href="#quickshift_tiled">Tiled Quickshift segmentation</a> for windowed raster reads.
+Tiled Quickshift retains accepted object geometries in memory. Ordinary segmentation, feature extraction, and pixel classification tools load full raster data. Prediction batching does not make those workflows out-of-core. Clip large images first.
 Use QGIS for clipping, reprojection, mosaicking, rasterization, and styling.</p>
 <p>Choose distinct output paths separate from all inputs. Vector outputs are GeoPackages, rasters are GeoTIFFs, and reports are HTML.
 Each completed file is staged before replacement. Canceling a multi-output job can retain a completed file or a hidden staging file.</p>
 <p>Point clouds, optional deep-learning detection, SHAP, cross-validation UI, and serialized model persistence are outside this plugin.</p>
 <h2>License and sources</h2>
-<p>Plugin: GPLv3. Bundled OBIA 0.2.0: MIT, with its original notice retained. Installer/UI adaptations credit Nicholas Rogers and Joseph Percival's
+<p>Plugin: GPLv3. Bundled OBIA 0.2.0 with upstream Quickshift changes at commit <code>38ecc04</code>: MIT, with its original notice retained. Installer/UI adaptations credit Nicholas Rogers and Joseph Percival's
 GPL-2.0-or-later PyForestScan for QGIS. Separately downloaded packages retain their own licenses.</p>
-<p><a href="https://github.com/iosefa/obia-qgis">Plugin source</a> · <a href="https://github.com/iosefa/obia/tree/v0.2.0">OBIA v0.2.0 source</a></p>
+<p><a href="https://github.com/iosefa/obia-qgis">Plugin source</a> · <a href="https://github.com/iosefa/obia/tree/38ecc04dc28a477487d64e51cd19847e5572333f">Bundled OBIA source</a></p>
 </body></html>

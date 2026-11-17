@@ -351,6 +351,55 @@ class EngineManagerTests(unittest.TestCase):
             json.loads((base / "active.json").read_text())["generation"], previous.name
         )
         self.assertFalse((self.root / "s").exists())
+        active = json.loads((base / "active.json").read_text())
+        self.assertIn("PASSED", (base / active["validation_log"]).read_text())
+
+    def test_validation_timeout_preserves_diagnostics_and_previous_engine(self):
+        def stalled(*args, **kwargs):
+            self.assertEqual(kwargs["timeout"], 600)
+            kwargs["event"](
+                {"type": "validation", "value": 25, "message": "Loading scikit-learn"}
+            )
+            kwargs["event"]({"type": "log", "message": "native library diagnostic"})
+            raise client.EngineTimeout("deliberate timeout")
+
+        with self.assertRaises(client.EngineError) as caught:
+            self._installation(stalled)
+        self.assertIn("Last check: Loading scikit-learn", str(caught.exception))
+        logs = list(manager.version_root().glob("validation-*.log"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn(str(logs[0]), str(caught.exception))
+        content = logs[0].read_text()
+        self.assertIn("native library diagnostic", content)
+        self.assertIn("deliberate timeout", content)
+
+    def test_validation_shows_elapsed_time_without_losing_named_step(self):
+        seen = []
+        with patch.object(manager.time, "monotonic", return_value=0) as clock:
+
+            def slow_start(*args, **kwargs):
+                kwargs["event"](
+                    {"type": "validation", "value": 15, "message": "Loading Rasterio"}
+                )
+                kwargs["event"]({"type": "log", "message": "a warning"})
+                clock.return_value = 125
+                kwargs["tick"](125)
+                return {"ready": True}
+
+            with patch.object(manager, "call_with_python", side_effect=slow_start):
+                result = manager._validate_engine(
+                    "test-python",
+                    Path(self.directory.name) / "check.log",
+                    progress=lambda *args: seen.append(args),
+                )
+        self.assertTrue(result["ready"])
+        self.assertIn("Loading Rasterio", seen[-1][1])
+        self.assertIn("2:05 elapsed", seen[-1][1])
+        self.assertIn("up to 10 minutes", seen[-1][1])
+        self.assertTrue(all(92 <= value <= 96 for value, _ in seen))
+        self.assertEqual(
+            [value for value, _ in seen], sorted(value for value, _ in seen)
+        )
 
     def test_failed_installer_cleans_cache_and_preserves_working_engine(self):
         with self.assertRaisesRegex(client.EngineError, "extraction failed"):
@@ -612,6 +661,61 @@ class EngineManagerTests(unittest.TestCase):
                 cancel=cancel,
                 timeout=5,
             )
+
+    def test_silent_worker_heartbeat_keeps_cancellation_available(self):
+        ticks = []
+        with self.assertRaises(client.EngineCanceled):
+            client.run_process(
+                [
+                    self.usable_process_python(),
+                    "-I",
+                    "-c",
+                    "import time; time.sleep(30)",
+                ],
+                cancel=lambda: bool(ticks),
+                tick=ticks.append,
+                timeout=10,
+            )
+        self.assertGreaterEqual(ticks[0], 1)
+
+    def test_stalled_import_reports_stage_and_thread_stack_before_timeout(self):
+        directory = Path(self.directory.name)
+        request, response = directory / "request.json", directory / "response.json"
+        request.write_text(
+            json.dumps({"protocol": 1, "operation": "selftest", "payload": {}})
+        )
+        # Shorten only the test's stack-dump interval, and stop before any third-
+        # party import. Exercise the real worker using an ordinary Python.
+        wrapper = directory / "stall.py"
+        wrapper.write_text(
+            "import builtins, faulthandler, runpy, time\n"
+            "original_import = builtins.__import__\n"
+            "def importing(name, *args, **kwargs):\n"
+            "    if name == 'geopandas': time.sleep(30)\n"
+            "    return original_import(name, *args, **kwargs)\n"
+            "builtins.__import__ = importing\n"
+            "dump = faulthandler.dump_traceback_later\n"
+            "faulthandler.dump_traceback_later = lambda *a, **k: dump(0.1)\n"
+            f"runpy.run_path({str(PLUGIN_ROOT / 'runtime/worker.py')!r}, run_name='__main__')\n"
+        )
+        with self.assertRaises(client.EngineTimeout) as caught:
+            client.run_process(
+                [
+                    self.usable_process_python(),
+                    "-I",
+                    wrapper,
+                    "--request",
+                    request,
+                    "--result",
+                    response,
+                ],
+                timeout=3,
+            )
+        message = str(caught.exception)
+        self.assertIn("Loading GeoPandas", message)
+        self.assertIn("selftest", message)
+        self.assertIn("importing", message)
+        self.assertFalse(response.exists())
 
     def test_protocol_request_and_error_response(self):
         def process(command, **kwargs):

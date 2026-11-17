@@ -1,19 +1,19 @@
 # OBIA for QGIS
 
 Object-based raster analysis in the **QGIS Processing Toolbox**, using
-**OBIA 0.2.0**. Segment imagery, measure objects, label them from points or polygons, and
+**OBIA 0.2.0 with upstream tiled Quickshift support**. Segment imagery, measure objects, label them from points or polygons, and
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.5 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.8 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Download [obia_qgis-0.1.5.zip](https://github.com/iosefa/obia-qgis/releases/download/v0.1.5/obia_qgis-0.1.5.zip)
-   from the [latest release](https://github.com/iosefa/obia-qgis/releases/latest).
+1. Use the built `obia_qgis-0.1.8.zip`, or download the installable plugin ZIP
+   from the [latest published release](https://github.com/iosefa/obia-qgis/releases/latest).
    Choose the asset labelled **INSTALL IN QGIS**.
    **Do not install GitHub's automatic “Source code (zip)” download**:
    its folder name is not a valid plugin package.
@@ -30,13 +30,15 @@ release has been tested.
 
 If QGIS reports `No module named 'obia-qgis-0'`, uninstall the failed source
 archive through the plugin manager, restart QGIS, and install the linked
-`obia_qgis-0.1.5.zip`. The installer contains one top-level `obia_qgis/` folder.
+`obia_qgis-0.1.8.zip`. The installer contains one top-level `obia_qgis/` folder.
 An existing OBIA engine can be reused.
 
 This follows the PyForestScan plugin's Install-from-ZIP and engine setup
 approach. OBIA's engine supplies its scientific stack in a separate process;
 it does not run pip in QGIS, alter QGIS's libraries, or change shell settings.
-The ZIP bundles the unchanged OBIA v0.2.0 source, its MIT license, and offline help.
+The ZIP bundles OBIA source at commit `38ecc04` (0.2.0 plus the merged tiled
+Quickshift changes), its MIT license, and offline help. Its recorded source
+hashes identify the exact code. The existing engine can be reused after updating.
 Neither sibling repository is needed to install or run it.
 
 The initial engine installation requires internet access. Downloads use HTTPS
@@ -45,6 +47,15 @@ and pinned SHA256 checksums. An installed engine works offline on local data.
 the previous working installation if setup fails or is canceled. **Remove engine**
 only removes this plugin's recognized engine installations; verified downloads
 remain cached. Previous generations use additional space until removal.
+
+The final engine check allows up to **ten minutes** and shows the current step
+and elapsed time. It finishes immediately when validation passes; Cancel stays
+available. Restart QGIS after updating the plugin ZIP to load the new installer.
+If validation fails, the error names the last check and a `validation-*.log`
+file in the displayed engine location. Select and copy that path to find the
+log and include it when reporting a problem. Logs survive failed-install cleanup
+and record library loading, scientific checks, and periodic thread stacks during
+a stall. This setup deadline does not limit ordinary analysis jobs.
 
 Engine manifests cover Windows x64, Linux x64, macOS Intel, and macOS Apple
 Silicon. Windows/Linux ARM engines are not supplied. The setup dialog reports
@@ -114,6 +125,57 @@ All band selectors use QGIS's **one-based** numbering. OBIA's output column name
 retain its **zero-based** convention: `b0_mean` means the mean of QGIS band 1,
 and `b3_std` means the standard deviation of QGIS band 4.
 
+## Large rasters with SLIC
+
+Use **Tiled SLIC segmentation** (`obia:slic_tiled`) to avoid loading the entire
+raster into memory. Start with **Tile size = 512 pixels**, **Overlap buffer = 64
+pixels**, and **Approximate objects per full tile = 1000**. The buffer must be
+smaller than the tile size. Reduce the tile size if memory is limited. The
+object count scales with included pixel area in buffered and partial tiles.
+
+Only selected bands in one buffered tile are read at a time. Objects, band
+means/standard deviations/counts, and the optional segment-ID raster are written
+incrementally. IDs are unique across the raster; source NoData and the optional
+aligned inclusion mask are respected. Save outputs to a disk with enough free
+space for both results and staging files.
+
+Each buffered tile is normalized independently, then clipped to its central
+tile. **Objects are split at tile boundaries; adjacent objects are not merged.**
+Overlap supplies context for SLIC but does not remove these cuts. Results differ
+from whole-raster SLIC, so inspect tile seams on a representative area first.
+The ordinary segmentation, feature extraction, and pixel classification tools still
+load full raster data; tiling here does not make those later steps use tiles.
+The initial tiled objects already contain the basic predictors for object classification.
+
+## Large rasters with Quickshift
+
+Use **Tiled Quickshift segmentation** (`obia:quickshift_tiled`) with **Tile size =
+512**, **Overlap buffer = 64**, **Kernel size = 3**, **Maximum distance = 6**, and
+**Color-to-space ratio = 0.5** as starting settings. Kernel size must be at least
+1; the buffer must be smaller than the tile. An aligned inclusion mask and
+smoothing sigma are available under advanced settings.
+
+The tool uses OBIA's checkerboard workflow. Black tiles are segmented first;
+buffered white tiles then replace objects entirely inside their windows. Objects
+crossing a buffered window's outside edge are protected. This lets new objects
+cross the original tile edges. A buffer that cannot contain an object keeps it intact.
+
+Quickshift uses a finite fill for excluded pixels, then clips every label using
+the original boolean mask. Mixed labels keep their valid portions, and disconnected
+pieces receive separate IDs. Normalization and smoothing exclude the artificial
+fill. Original NoData, source masks, and the optional inclusion mask are respected.
+
+Final polygons include band means, standard deviations, and valid counts; optional
+GeoTIFF IDs match those polygons. Their statistics and IDs are written from windowed
+reads, including complete objects spanning tile boundaries. Outputs replace existing
+files only after processing completes.
+
+Both passes run sequentially. Raster memory is bounded by the window size, while
+accepted object geometries and statistics accumulate in memory. The segmentation
+stage may take time before progress advances to the statistics stage. Per-tile
+normalization, limited overlap, and the fill can affect boundaries; inspect seams
+on a representative area. Results need not match whole-raster Quickshift.
+
 ## Toolbox tools
 
 All algorithm IDs have the prefix `obia:`. Help links open the bundled
@@ -122,8 +184,10 @@ All algorithm IDs have the prefix `obia:`. Help links open the bundled
 | Tool | ID | Outputs |
 | --- | --- | --- |
 | SLIC segmentation | `slic` | Objects, optional segment-ID raster |
+| Tiled SLIC segmentation | `slic_tiled` | Objects, optional segment-ID raster; processed in buffered tiles |
 | Felzenszwalb segmentation | `felzenszwalb` | Objects, optional segment-ID raster |
 | Quickshift segmentation | `quickshift` | Objects, optional segment-ID raster |
+| Tiled Quickshift segmentation | `quickshift_tiled` | Checkerboard objects, statistics, optional segment-ID raster |
 | Watershed segmentation | `watershed` | Objects, optional segment-ID raster |
 | Extract object features | `extractfeatures` | Objects with band, NDVI, shape, texture fields |
 | Label objects from points or polygons | `labelobjects` | Training/test objects, optional conflicting objects |
@@ -195,9 +259,10 @@ cells are read. Matrix counts are pixels, not polygon counts or area-weighted co
   when pixels from a training area should stay together.
 - Predictor fields must be numeric and present in both object and training
   layers. Exclude labels, IDs, grouping fields, and previous predictions.
-- Raster loading, segmentation, feature extraction, and result arrays use memory
-  for the full input area. Prediction batching does not make the whole workflow
-  out-of-core. Clip/reproject rasters in QGIS before processing large scenes.
+- **Tiled SLIC segmentation** bounds raster and object memory by tile size.
+  Other segmentation, feature extraction, and pixel classification tools load
+  the full raster. Prediction batching does not make those workflows out-of-core.
+  Clip/reproject rasters in QGIS before those steps on large scenes.
 - Outputs are new GeoPackages, GeoTIFFs, and HTML reports. Input paths cannot be
   reused as outputs. Each completed file is staged before replacement, but a
   canceled multi-output job may retain a completed output or staging file.

@@ -7,7 +7,7 @@ import math
 import threading
 from pathlib import Path
 
-from qgis.PyQt.QtCore import QThread, QUrl, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QThread, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDialog,
@@ -74,6 +74,10 @@ class SetupDialog(QDialog):
         layout.addWidget(self.progress_bar)
         self.message = QLabel()
         self.message.setWordWrap(True)
+        self.message.setTextFormat(Qt.TextFormat.PlainText)
+        self.message.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         layout.addWidget(self.message)
         actions = QHBoxLayout()
         self.install_button = QPushButton("Install engine")

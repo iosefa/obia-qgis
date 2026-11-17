@@ -1,8 +1,7 @@
 {
   "version": "0.2.0",
-  "tag": "v0.2.0",
   "repository": "https://github.com/iosefa/obia",
-  "commit": "dc0312d1c5c29ea84459db2a0b767d78623f189b",
+  "commit": "38ecc04dc28a477487d64e51cd19847e5572333f",
   "files": {
     "LICENSE": "ba2c388bcc4b8b3b340e048fb5742629c49b4f30e963cea6cf78ea51e6b3713c",
     "obia/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -38,13 +37,15 @@
     "obia/pointcloud/segment_features.py": "30555780f5e3b2daa3bd8ca4feb0f6efc190102ad9f98e7a260f849cd8778075",
     "obia/segmentation/__init__.py": "4b53b9dbaf12e43f516b50f4fd45b3e1b9371f0e35332216a6093bfca0ca2ede",
     "obia/segmentation/segment.py": "c0b7a3de6e6bd7fa5972fd4d5de011928ec44beb622edf83f20671db93e19300",
-    "obia/segmentation/segment_boundaries.py": "3cca1d6e83d56ea37cce17e220355ae71faa2f7f1907a9ca44575de9df33b443",
+    "obia/segmentation/segment_boundaries.py": "2db3a53c46be69c24a15487897445cbd25594999f00ae5e0d25a212c5cb4937c",
     "obia/segmentation/segment_statistics.py": "65c5d6f671700d67102c3ee161a645af371d7d17e198ad193456d1841b511b1c",
     "obia/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "obia/utils/image.py": "1e15296e03828b484c8eb390cc193062d3dc40bb0ff3358c486a1774ab9b1e16",
-    "obia/utils/tiling.py": "a723460598ee198bd57c0d0905c36d06e38af68ada86b2ece809b137942783ba",
+    "obia/utils/tiling.py": "5edaaaeb98484428f44d3b1fac7d3771e652694fb5d2306a362b141115078b51",
     "obia/utils/training.py": "35bd4853a23aeb6b94474d0810fda9cb417c960fa5c1e9a2cf9cb85471d06495",
     "obia/utils/utils.py": "76623fcf6380cd8c8f1778304fb0ab66849d7b74016fa82cab83e042bf6d1eb3",
     "pyproject.toml": "10eee44876c6301b25ede5b3bb66a2bf2354d3e9ed84eb3a033fc37bc83bb309"
-  }
+  },
+  "base_tag": "v0.2.0",
+  "description": "OBIA 0.2.0 with the merged upstream tiled Quickshift implementation."
 }

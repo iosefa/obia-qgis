@@ -25,6 +25,10 @@ class EngineCanceled(EngineError):
     pass
 
 
+class EngineTimeout(EngineError):
+    pass
+
+
 def sanitized_environment(python=None):
     """Keep user/network essentials; rebuild executable and geospatial paths.
 
@@ -122,7 +126,9 @@ def _stop_process(process):
         process.wait(timeout=5)
 
 
-def run_process(command, *, python=None, cancel=None, event=None, timeout=None):
+def run_process(
+    command, *, python=None, cancel=None, event=None, timeout=None, tick=None
+):
     """Drain both pipes on reader threads so cancellation works on Windows too."""
     options = (
         {"start_new_session": True}
@@ -167,15 +173,27 @@ def run_process(command, *, python=None, cancel=None, event=None, timeout=None):
     for thread in threads:
         thread.start()
     started = time.monotonic()
+    last_tick = started
     finished = 0
     try:
         while finished < 2 or process.poll() is None:
             if cancel and cancel():
                 raise EngineCanceled("OBIA processing was canceled.")
-            if timeout is not None and time.monotonic() - started > timeout:
-                raise EngineError(
-                    "The OBIA engine timed out. Open OBIA Setup to repair or retry."
+            now = time.monotonic()
+            elapsed = now - started
+            if timeout is not None and elapsed > timeout:
+                detail = (
+                    "\nRecent engine output:\n" + "\n".join(tail)[-2000:]
+                    if tail
+                    else ""
                 )
+                raise EngineTimeout(
+                    f"The OBIA engine timed out after {elapsed:.0f} seconds. "
+                    "Open OBIA Setup to repair or retry." + detail
+                )
+            if tick is not None and now - last_tick >= 1:
+                tick(elapsed)
+                last_tick = now
             try:
                 line = messages.get(timeout=0.1)
             except queue.Empty:
@@ -196,7 +214,15 @@ def run_process(command, *, python=None, cancel=None, event=None, timeout=None):
 
 
 def call_with_python(
-    python, operation, payload, feedback=None, *, cancel=None, event=None, timeout=None
+    python,
+    operation,
+    payload,
+    feedback=None,
+    *,
+    cancel=None,
+    event=None,
+    timeout=None,
+    tick=None,
 ):
     """Internal entry point also used to validate an unactivated installation."""
     worker = Path(__file__).resolve().with_name("worker.py")
@@ -266,6 +292,7 @@ def call_with_python(
             cancel=canceled,
             event=consume,
             timeout=timeout,
+            tick=tick,
         )
         if not response.is_file() or response.stat().st_size > 32 * 1024 * 1024:
             detail = logs[-3000:] or f"Worker exited with status {code}."

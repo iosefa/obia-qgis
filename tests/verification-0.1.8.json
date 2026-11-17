@@ -1,0 +1,57 @@
+{
+  "date": "2026-11-17",
+  "plugin_version": "0.1.8",
+  "engine_version": "0.2.0-1",
+  "obia_commit": "38ecc04dc28a477487d64e51cd19847e5572333f",
+  "artifact": {
+    "filename": "obia_qgis-0.1.8.zip",
+    "bytes": 5769369,
+    "sha256": "76b8492e25ecd5473ea93f1dae4272508e704618cf0cd774875b51dbf6fdff46"
+  },
+  "platform": "macOS 15.5, arm64",
+  "checks": {
+    "scientific_worker": {
+      "passed": 34
+    },
+    "installer_regressions": {
+      "passed": 37,
+      "skipped_windows_only": 2
+    },
+    "qgis_3_40_integration": {
+      "passed": 11
+    },
+    "qgis_4_2_integration": {
+      "passed": 11
+    },
+    "zip_load_unload": {
+      "qgis": [
+        "3.40.3-Bratislava",
+        "4.2.3-Bel\u00e9m do Par\u00e1"
+      ],
+      "algorithms": 12,
+      "result": "passed"
+    },
+    "real_imagery": {
+      "shape": [
+        1024,
+        1024
+      ],
+      "tiles": 16,
+      "objects": 3108,
+      "valid_pixels": 1020076,
+      "missing_pixels": 0,
+      "overlapping_pixels": 0,
+      "statistics": "all band means, standard deviations, and counts verified",
+      "seconds": 4.28
+    },
+    "upstream_source_hashes_archive_entries_crc_python_syntax_ruff_and_whitespace": "passed",
+    "setup_validation_timeout_seconds": 600
+  },
+  "limits": [
+    "Quickshift checkerboard passes are sequential; accepted object geometry and statistics accumulate in memory.",
+    "Per-window normalization, overlap, and pseudo-mask fill can affect nearby boundaries.",
+    "Windows, Linux, Intel Mac, and fresh engine installations were not rerun locally. Engine package locks and Windows path audit are unchanged.",
+    "The sandboxed QGIS 4.2 process aborted at a macOS notification-service connection; the integration suite and archive loader passed with normal app access."
+  ],
+  "delivery": "Local installable ZIP built on feat/tiled-quickshift; no release published."
+}
