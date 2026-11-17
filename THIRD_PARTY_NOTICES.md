@@ -3,15 +3,18 @@
 OBIA for QGIS is distributed under GPL-3.0-only; the full text is in LICENSE.
 Copyright (C) 2026 Joseph Percival.
 
-## OBIA 0.2.0
+## OBIA 0.2.0 with upstream tiled Quickshift support
 
-The unchanged release source is in `vendor/obia/obia`. Its MIT license and
+The upstream source is in `vendor/obia/obia`. Its MIT license and
 copyright notice are in `vendor/obia/LICENSE`. `vendor/obia/SOURCE.json` records
-the v0.2.0 Git commit and SHA256 of each bundled file. All source is retained,
+Git commit `38ecc04dc28a477487d64e51cd19847e5572333f`, the base release v0.2.0,
+and SHA256 of each bundled file. This commit includes the merged checkerboard
+Quickshift implementation and mask preprocessing changes; it is not the unchanged
+v0.2.0 release. All source is retained,
 including optional modules, but this plugin does not import or install OBIA's
 point-cloud, deep-learning detection, notebook, or SHAP extras.
 
-Source: https://github.com/iosefa/obia/tree/v0.2.0
+Source: https://github.com/iosefa/obia/tree/38ecc04dc28a477487d64e51cd19847e5572333f
 Copyright (c) 2024 Joseph Emile Honour Percival.
 
 ## PyForestScan for QGIS

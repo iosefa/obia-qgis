@@ -58,7 +58,7 @@ python scripts/check_plugin_zip.py dist/obia_qgis.zip --qgis
 ```
 
 This uses a temporary profile, discovers the extracted `obia_qgis` package,
-starts it, verifies all eleven Processing algorithms, and unloads it. No engine is
+starts it, verifies all twelve Processing algorithms, and unloads it. No engine is
 needed for plugin loading. Run this check against the downloaded release asset
 as well as the local build. GitHub's automatic source ZIP must be rejected:
 its `obia-qgis-VERSION/` folder cannot be imported as the plugin package.
@@ -100,6 +100,15 @@ partial edge tiles, empty tiles, one-pixel masks, band selection/order, SLICO,
 smoothing, optional outputs, invalid settings, and a mid-run failure preserving
 existing outputs. A single full-size tile is compared with ordinary SLIC.
 
+Tiled Quickshift checks compare final polygons and IDs with the exact bundled
+upstream checkerboard implementation. They reject unbounded raster reads and
+independently check coverage, overlapping pixels, statistics across tile boundaries,
+rotated grids, partial/empty tiles, one-pixel masks, NoData, band ordering, optional
+IDs, smoothing, and a spatial-only (`ratio=0`) run. A forced mixed-label case proves
+that protected objects remain intact and valid portions survive clipping. Failed
+segmentation preserves existing outputs. The actual Processing tests exercise the
+new dialog and the isolated worker on both supported QGIS major versions.
+
 ## Windows package-path audit
 
 ```bash
@@ -120,6 +129,29 @@ package job validates the install ZIP without requiring QGIS or an engine.
 Configured CI is not evidence of a successful run.
 
 ## Local release record
+
+Verification for 0.1.8 on 2026-11-17, macOS Apple Silicon:
+
+| Check | Result |
+| --- | --- |
+| Scientific engine and protocol suite | All 34 tests passed using the existing engine |
+| Installer regressions | 37 passed; 2 Windows-only filesystem tests skipped |
+| QGIS 3.40.3 / Qt 5 integration | All 11 tests passed, including tiled Quickshift and registration of all twelve tools |
+| QGIS 4.2.3 / Qt 6 integration | All 11 tests passed with normal macOS app access |
+| Bundled 1024 × 1024 Chesapeake imagery with masked holes | 16 checkerboard tiles, 3,108 objects, all 1,020,076 included pixels covered exactly once; 4.28 seconds on this machine |
+| Final object measurements | All three bands' means, standard deviations, and counts independently verified, including objects spanning output windows |
+| Source and static checks | Bundled files match upstream commit `38ecc04` and their recorded hashes; Ruff and whitespace checks passed |
+
+The new tool uses the merged upstream checkerboard implementation directly,
+then measures final objects and writes optional IDs with windowed reads.
+The real-imagery check used reordered RGB bands, 256-pixel tiles, a 64-pixel
+buffer, kernel size 3, maximum distance 6, and ratio 0.5. Its timing is not a
+performance guarantee. Accepted geometries and object statistics accumulate in
+memory, and processing remains sequential. The QGIS 4.2 test first aborted at
+a macOS notification-service connection in the restricted sandbox; the run with
+normal app access passed. Windows, Linux, Intel Mac, and fresh engine installs
+were not rerun locally; engine package locks, Windows path audit, and the
+ten-minute setup validation are unchanged.
 
 Verification for 0.1.6 on 2026-10-22, macOS Apple Silicon:
 

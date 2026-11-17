@@ -100,7 +100,9 @@ def check_qgis(path):
             if PLUGIN_ID not in utils.available_plugins:
                 raise RuntimeError("QGIS did not discover the extracted plugin.")
             if not utils.loadPlugin(PLUGIN_ID) or not utils.startPlugin(PLUGIN_ID):
-                raise RuntimeError("QGIS could not load and start the extracted plugin.")
+                raise RuntimeError(
+                    "QGIS could not load and start the extracted plugin."
+                )
             provider = app.processingRegistry().providerById("obia")
             if provider is None:
                 raise RuntimeError("The OBIA Processing provider is missing.")
@@ -110,6 +112,7 @@ def check_qgis(path):
                 "slic_tiled",
                 "felzenszwalb",
                 "quickshift",
+                "quickshift_tiled",
                 "watershed",
                 "extractfeatures",
                 "labelobjects",

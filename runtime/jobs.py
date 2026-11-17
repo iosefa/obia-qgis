@@ -1,4 +1,4 @@
-"""Raster workflows using the unchanged OBIA 0.2.0 API, outside QGIS."""
+"""Raster workflows using the bundled OBIA library, outside QGIS."""
 
 from contextlib import contextmanager, ExitStack
 from html import escape
@@ -288,12 +288,13 @@ def segment_raster(p):
 
 
 def segment_tiled_raster(p):
-    """Stream buffered SLIC tiles through OBIA's unchanged label/feature APIs.
+    """Dispatch tiled Quickshift or stream buffered SLIC through OBIA's APIs.
 
-    Keep only disjoint tile cores, relabelling disconnected pieces after cropping.
-    This intentionally splits objects at seams; it is not a global SLIC solution
-    or the experimental checkerboard merger in obia.utils.tiling.
+    The SLIC path keeps disjoint tile cores, relabelling pieces after cropping.
+    Quickshift uses the upstream checkerboard merger to retain crossing objects.
     """
+    if p.get("method", "slic") == "quickshift":
+        return segment_tiled_quickshift(p)
     import numpy as np
     import rasterio
     from rasterio.windows import Window
@@ -316,7 +317,7 @@ def segment_tiled_raster(p):
     if buffer >= tile_size:
         raise ValueError("Overlap buffer must be smaller than the tile size.")
     if p.get("method", "slic") != "slic":
-        raise ValueError("Tiled segmentation supports SLIC only.")
+        raise ValueError("Tiled segmentation supports SLIC and Quickshift.")
     options.setdefault("convert2lab", False)
 
     def tile_image(data, valid, transform, crs):
@@ -488,6 +489,205 @@ def segment_tiled_raster(p):
                 "No objects were created. Check the raster and mask coverage."
             )
     progress(100, f"Created {count} objects across {tiles} tiles")
+    return {
+        "output": p["output"],
+        "objects": count,
+        "tiles": tiles,
+        "labels": p.get("labels", ""),
+    }
+
+
+def segment_tiled_quickshift(p):
+    """Use upstream checkerboard replacement, then measure its final objects.
+
+    Final labels and statistics are generated in disjoint raster windows, without
+    clipping the object geometries or loading the whole image. Parallel variance
+    updates combine each object's samples across windows using population std.
+    """
+    import geopandas as gpd
+    import numpy as np
+    import rasterio
+    from rasterio.features import rasterize
+    from rasterio.windows import Window
+    from shapely.geometry import Polygon
+    from obia.utils.tiling import create_tiled_segments
+
+    validate_destinations(p, ("output", "labels"))
+    tile_size, buffer = p.get("tile_size", 512), p.get("buffer", 64)
+    for name, value, minimum in (
+        ("Tile size", tile_size, 16),
+        ("Overlap buffer", buffer, 0),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+            raise ValueError(f"{name} must be an integer of at least {minimum}.")
+    if buffer >= tile_size:
+        raise ValueError("Overlap buffer must be smaller than the tile size.")
+    options = dict(p.get("options", {}))
+    options.setdefault("convert2lab", False)
+
+    with ExitStack() as stack:
+        stack.enter_context(rasterio.Env(GDAL_CACHEMAX=64 * 1024 * 1024))
+        source = stack.enter_context(rasterio.open(p["raster"]))
+        validate_raster(source)
+        selected = bands(p.get("bands"), source.count)
+        inclusion = None
+        if p.get("mask"):
+            inclusion = stack.enter_context(rasterio.open(p["mask"]))
+            if (
+                inclusion.crs != source.crs
+                or inclusion.transform != source.transform
+                or inclusion.shape != source.shape
+            ):
+                raise ValueError(
+                    "The mask must match the raster CRS, grid, and dimensions. Align it in QGIS first."
+                )
+        directory = stack.enter_context(
+            tempfile.TemporaryDirectory(
+                prefix=".obia-tiles-", dir=Path(p["output"]).parent
+            )
+        )
+        tiles = ((source.height + tile_size - 1) // tile_size) * (
+            (source.width + tile_size - 1) // tile_size
+        )
+        progress(
+            5,
+            f"Segmenting {tiles} Quickshift checkerboard tiles; this stage may take time",
+        )
+        create_tiled_segments(
+            p["raster"],
+            directory,
+            input_mask=p.get("mask") or None,
+            method="quickshift",
+            tile_size=tile_size,
+            buffer=buffer,
+            segmentation_bands=selected,
+            **options,
+        )
+        objects = gpd.read_file(Path(directory) / "segments.gpkg")
+        count = len(objects)
+        if not count:
+            raise ValueError(
+                "No objects were created. Check the raster and mask coverage."
+            )
+        if count > np.iinfo(np.int32).max:
+            raise ValueError(
+                "Too many objects for segment IDs. Increase Quickshift object sizes."
+            )
+        if not np.array_equal(objects.segment_id, np.arange(1, count + 1)):
+            raise ValueError(
+                "Checkerboard segmentation returned unexpected object IDs."
+            )
+        spatial_index = objects.sindex
+        sample_counts = np.zeros(count + 1, dtype=np.int64)
+        means = np.zeros((count + 1, len(selected)), dtype=np.float64)
+        squared_deviations = np.zeros_like(means)
+        objects_path = stack.enter_context(staged_output(p["output"], ".gpkg"))
+        label_sink = None
+        if p.get("labels"):
+            labels_path = stack.enter_context(staged_output(p["labels"], ".tif"))
+            label_sink = stack.enter_context(
+                rasterio.open(
+                    labels_path,
+                    "w",
+                    driver="GTiff",
+                    width=source.width,
+                    height=source.height,
+                    count=1,
+                    dtype="int32",
+                    crs=source.crs,
+                    transform=source.transform,
+                    nodata=0,
+                    compress="deflate",
+                    tiled=True,
+                    BIGTIFF="IF_SAFER",
+                )
+            )
+        index = 0
+        for row in range(0, source.height, tile_size):
+            for col in range(0, source.width, tile_size):
+                index += 1
+                progress(
+                    60 + 35 * (index - 1) / tiles,
+                    f"Calculating final object statistics: tile {index} of {tiles}",
+                )
+                height = min(tile_size, source.height - row)
+                width = min(tile_size, source.width - col)
+                window = Window(col, row, width, height)
+                transform = source.window_transform(window)
+                footprint = Polygon(
+                    [
+                        transform * corner
+                        for corner in ((0, 0), (width, 0), (width, height), (0, height))
+                    ]
+                )
+                intersecting = objects.iloc[
+                    spatial_index.query(footprint, predicate="intersects")
+                ]
+                labels = np.zeros((height, width), dtype="int32")
+                if not intersecting.empty:
+                    labels = rasterize(
+                        zip(intersecting.geometry, intersecting.segment_id),
+                        out_shape=labels.shape,
+                        transform=transform,
+                        dtype="int32",
+                    )
+                pixels = source.read(
+                    [band + 1 for band in selected],
+                    window=window,
+                    masked=True,
+                    out_dtype="float64",
+                )
+                valid = np.all(
+                    ~np.ma.getmaskarray(pixels) & np.isfinite(pixels.data), axis=0
+                )
+                if inclusion is not None:
+                    mask = inclusion.read(1, window=window, masked=True)
+                    valid &= (
+                        ~np.ma.getmaskarray(mask)
+                        & np.isfinite(mask.data)
+                        & (mask.data != 0)
+                    )
+                if not np.array_equal(labels > 0, valid):
+                    raise ValueError(
+                        "Final Quickshift objects do not cover exactly the included pixels. "
+                        "Existing outputs were kept."
+                    )
+                ids, inverse, counts = np.unique(
+                    labels[valid], return_inverse=True, return_counts=True
+                )
+                if len(ids):
+                    total = sample_counts[ids] + counts
+                    for position in range(len(selected)):
+                        values = pixels.data[position][valid]
+                        tile_means = np.bincount(inverse, weights=values) / counts
+                        tile_deviations = np.bincount(
+                            inverse,
+                            weights=(values - tile_means[inverse]) ** 2,
+                        )
+                        delta = tile_means - means[ids, position]
+                        means[ids, position] += delta * counts / total
+                        squared_deviations[ids, position] += (
+                            tile_deviations
+                            + delta**2 * sample_counts[ids] * counts / total
+                        )
+                    sample_counts[ids] = total
+                if label_sink is not None:
+                    label_sink.write(labels, 1, window=window)
+        if np.any(sample_counts[1:] == 0):
+            raise ValueError(
+                "A final Quickshift object has no included pixels. Existing outputs were kept."
+            )
+        for position, band in enumerate(selected):
+            objects[f"b{band}_mean"] = means[1:, position]
+            objects[f"b{band}_std"] = np.sqrt(
+                np.maximum(squared_deviations[1:, position] / sample_counts[1:], 0)
+            )
+            objects[f"b{band}_valid_count"] = sample_counts[1:]
+        progress(98, f"Saving {count} final objects")
+        objects.to_file(
+            objects_path, driver="GPKG", layer="objects", index=False, engine="pyogrio"
+        )
+    progress(100, f"Created {count} objects across {tiles} checkerboard tiles")
     return {
         "output": p["output"],
         "objects": count,

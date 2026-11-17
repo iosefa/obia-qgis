@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.8
+
+- Add **Tiled Quickshift segmentation** (`obia:quickshift_tiled`) with tile size,
+  overlap buffer, band selection, inclusion mask, kernel size, maximum distance,
+  color-to-space ratio, and optional smoothing.
+- Use OBIA's merged checkerboard implementation: preserve objects crossing a
+  buffered window's outside edge, replace wholly contained objects only after
+  coverage succeeds, and clip every mixed label to the saved boolean mask.
+- Calculate band means, population standard deviations, valid counts, and optional
+  GeoTIFF segment IDs from final objects using windowed reads. Objects spanning
+  tile boundaries keep one ID and complete statistics.
+- Bundle the exact OBIA source at commit `38ecc04`, based on 0.2.0 with the upstream
+  Quickshift changes. Record source provenance and per-file SHA256 hashes.
+- Keep the existing engine package locks, installation paths, ten-minute setup
+  validation, and tiled SLIC workflow. No engine reinstall is required.
+- Processing remains sequential. Raster reads are bounded by tile size, while
+  checkerboard object geometries and statistics grow with the object count.
+
 ## 0.1.7
 
 - Allow up to ten minutes for the installation/repair validation, with immediate

@@ -8,6 +8,7 @@ from .algorithms.segmentation import (
     TiledSlicSegmentation,
     FelzenszwalbSegmentation,
     QuickshiftSegmentation,
+    TiledQuickshiftSegmentation,
     WatershedSegmentation,
 )
 from .algorithms.features import ExtractFeatures
@@ -35,6 +36,7 @@ class OBIAProvider(QgsProcessingProvider):
             TiledSlicSegmentation,
             FelzenszwalbSegmentation,
             QuickshiftSegmentation,
+            TiledQuickshiftSegmentation,
             WatershedSegmentation,
             ExtractFeatures,
             LabelObjects,

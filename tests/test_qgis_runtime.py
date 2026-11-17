@@ -142,7 +142,7 @@ class QgisIntegrationTests(unittest.TestCase):
         return layer
 
     def test_provider_and_setup_do_not_import_obia(self):
-        self.assertEqual(len(self.plugin.provider.algorithms()), 11)
+        self.assertEqual(len(self.plugin.provider.algorithms()), 12)
         self.assertNotIn("obia", sys.modules)
         self.assertNotIn("rasterio", sys.modules)
         from obia_qgis.setup_dialog import SetupDialog
@@ -280,6 +280,45 @@ class QgisIntegrationTests(unittest.TestCase):
         self.assertNotIn("b0_mean", objects.fields().names())
         ids = [feature["segment_id"] for feature in objects.getFeatures()]
         self.assertGreater(len(ids), 4)
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(sum(f["b1_valid_count"] for f in objects.getFeatures()), 1024)
+
+    def test_tiled_quickshift_processing(self):
+        from qgis.core import QgsVectorLayer, QgsRasterLayer
+
+        algorithm = self.registry.algorithmById("obia:quickshift_tiled")
+        self.assertIsNotNone(algorithm)
+        self.assertNotIn("full raster is read", algorithm.shortHelpString())
+        self.assertIn("checkerboard", algorithm.shortHelpString())
+        self.assertIsNone(algorithm.parameterDefinition("SEGMENTS"))
+        self.assertEqual(algorithm.parameterDefinition("TILE_SIZE").defaultValue(), 512)
+        self.assertEqual(algorithm.parameterDefinition("KERNEL_SIZE").minimum(), 1)
+        result = self.run_algorithm(
+            "quickshift_tiled",
+            dict(
+                INPUT=self.raster,
+                BANDS=[2],
+                TILE_SIZE=19,
+                BUFFER=4,
+                KERNEL_SIZE=2,
+                MAX_DIST=5,
+                RATIO=0,
+                SIGMA=0.5,
+                OUTPUT=str(self.d / "quickshift tiled.gpkg"),
+                LABELS=str(self.d / "quickshift tiled.tif"),
+            ),
+        )
+        objects = self.keep_layer(
+            QgsVectorLayer(result["OUTPUT"], "Quickshift objects", "ogr")
+        )
+        labels = self.keep_layer(QgsRasterLayer(result["LABELS"], "Quickshift IDs"))
+        self.assertTrue(objects.isValid())
+        self.assertTrue(labels.isValid())
+        self.assertEqual((labels.width(), labels.height()), (32, 32))
+        self.assertIn("b1_mean", objects.fields().names())
+        self.assertNotIn("b0_mean", objects.fields().names())
+        ids = [feature["segment_id"] for feature in objects.getFeatures()]
+        self.assertGreater(len(ids), 0)
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(sum(f["b1_valid_count"] for f in objects.getFeatures()), 1024)
 
