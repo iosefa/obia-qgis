@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-17",
+  "plugin_version": "0.1.9",
+  "engine_version": "0.2.0-1",
+  "obia_commit": "38ecc04dc28a477487d64e51cd19847e5572333f",
+  "artifact": {
+    "filename": "obia_qgis-0.1.9.zip",
+    "bytes": 5769582,
+    "sha256": "89f18193e4026b69ea4096126d55fdf0b1f5251ec39b976c5d90dffc2afef843"
+  },
+  "platform": "macOS Apple Silicon",
+  "changes": {
+    "tiled_quickshift_tile_size": 1024,
+    "tiled_quickshift_overlap_buffer": 128
+  },
+  "checks": {
+    "qgis_3_40_tiled_quickshift_integration": {
+      "passed": 1
+    },
+    "zip_load_unload": {
+      "qgis": [
+        "3.40.3-Bratislava",
+        "4.2.3-Bel\u00e9m do Par\u00e1"
+      ],
+      "algorithms": 12,
+      "result": "passed"
+    },
+    "archive_entries_match_working_tree": 76,
+    "development_alias_matches_versioned_zip": true,
+    "source_hashes_windows_audit_archive_crc_python_syntax_ruff_whitespace": "passed"
+  },
+  "limits": [
+    "The broader scientific and installer suites were not rerun for this defaults-only update. See the 0.1.8 verification record.",
+    "A 128-pixel buffer is a starting default, not a guarantee that all boundary objects fit inside the overlap.",
+    "The QGIS 4.2 ZIP loader check used normal macOS app access."
+  ],
+  "delivery": "Local installable plugin ZIP; no GitHub release published for this build."
+}

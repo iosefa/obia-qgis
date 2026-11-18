@@ -130,6 +130,17 @@ Configured CI is not evidence of a successful run.
 
 ## Local release record
 
+Verification for 0.1.9 on 2026-11-17, macOS Apple Silicon:
+
+- The existing tiled Quickshift Processing integration test passed in QGIS
+  3.40.3 / Qt 5 after updating the expected default tile size to 1024 pixels.
+- Ruff and whitespace checks passed for the defaults change.
+
+This update changes the tiled Quickshift defaults to 1024-pixel tiles and a
+128-pixel buffer, with matching documentation. The earlier 0.1.8 checks below
+describe the broader scientific and installer validation; they were not rerun
+for this defaults-only update.
+
 Verification for 0.1.8 on 2026-11-17, macOS Apple Silicon:
 
 | Check | Result |

@@ -5,14 +5,14 @@ Object-based raster analysis in the **QGIS Processing Toolbox**, using
 classify objects or pixels. Ordinary Processing dialogs support batch jobs and
 models. There is no separate analysis panel and no point-cloud workflow.
 
-**0.1.8 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
+**0.1.9 is experimental.** The plugin targets QGIS 3.40–3.x and 4.x.
 See [the verification record](tests/README.md) for the versions and platforms
 actually tested; the metadata's upper version limit is not a claim that every
 release has been tested.
 
 ## Install
 
-1. Use the built `obia_qgis-0.1.8.zip`, or download the installable plugin ZIP
+1. Use the built `obia_qgis-0.1.9.zip`, or download the installable plugin ZIP
    from the [latest published release](https://github.com/iosefa/obia-qgis/releases/latest).
    Choose the asset labelled **INSTALL IN QGIS**.
    **Do not install GitHub's automatic “Source code (zip)” download**:
@@ -30,7 +30,7 @@ release has been tested.
 
 If QGIS reports `No module named 'obia-qgis-0'`, uninstall the failed source
 archive through the plugin manager, restart QGIS, and install the linked
-`obia_qgis-0.1.8.zip`. The installer contains one top-level `obia_qgis/` folder.
+`obia_qgis-0.1.9.zip`. The installer contains one top-level `obia_qgis/` folder.
 An existing OBIA engine can be reused.
 
 This follows the PyForestScan plugin's Install-from-ZIP and engine setup
@@ -150,7 +150,7 @@ The initial tiled objects already contain the basic predictors for object classi
 ## Large rasters with Quickshift
 
 Use **Tiled Quickshift segmentation** (`obia:quickshift_tiled`) with **Tile size =
-512**, **Overlap buffer = 64**, **Kernel size = 3**, **Maximum distance = 6**, and
+1024**, **Overlap buffer = 128**, **Kernel size = 3**, **Maximum distance = 6**, and
 **Color-to-space ratio = 0.5** as starting settings. Kernel size must be at least
 1; the buffer must be smaller than the tile. An aligned inclusion mask and
 smoothing sigma are available under advanced settings.

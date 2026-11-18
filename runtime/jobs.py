@@ -513,7 +513,7 @@ def segment_tiled_quickshift(p):
     from obia.utils.tiling import create_tiled_segments
 
     validate_destinations(p, ("output", "labels"))
-    tile_size, buffer = p.get("tile_size", 512), p.get("buffer", 64)
+    tile_size, buffer = p.get("tile_size", 1024), p.get("buffer", 128)
     for name, value, minimum in (
         ("Tile size", tile_size, 16),
         ("Overlap buffer", buffer, 0),

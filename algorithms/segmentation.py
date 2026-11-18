@@ -49,8 +49,8 @@ class Segmentation(Algorithm):
             self.number("MAX_DIST", "Maximum distance", 6, 0.000001)
             self.number("RATIO", "Color-to-space ratio", 0.5, 0, 1)
             if self.TILED:
-                self.number("TILE_SIZE", "Tile size (pixels)", 512, 16, integer=True)
-                self.number("BUFFER", "Overlap buffer (pixels)", 64, 0, integer=True)
+                self.number("TILE_SIZE", "Tile size (pixels)", 1024, 16, integer=True)
+                self.number("BUFFER", "Overlap buffer (pixels)", 128, 0, integer=True)
                 self.number("SIGMA", "Smoothing sigma (pixels)", 0, advanced=True)
         elif self.METHOD == "watershed":
             self.number(
@@ -154,7 +154,7 @@ class TiledQuickshiftSegmentation(Segmentation):
     )
     HELP = (
         "<p>Segment large rasters using overlapping checkerboard tiles. Start with "
-        "512-pixel tiles and a 64-pixel buffer, smaller than the tile size. "
+        "1024-pixel tiles and a 128-pixel buffer, smaller than the tile size. "
         "The second pass replaces whole objects inside each buffered window, allowing "
         "new objects to cross the original tile edges. Objects crossing the outside "
         "of that window stay intact.</p>"

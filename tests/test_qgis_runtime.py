@@ -291,7 +291,7 @@ class QgisIntegrationTests(unittest.TestCase):
         self.assertNotIn("full raster is read", algorithm.shortHelpString())
         self.assertIn("checkerboard", algorithm.shortHelpString())
         self.assertIsNone(algorithm.parameterDefinition("SEGMENTS"))
-        self.assertEqual(algorithm.parameterDefinition("TILE_SIZE").defaultValue(), 512)
+        self.assertEqual(algorithm.parameterDefinition("TILE_SIZE").defaultValue(), 1024)
         self.assertEqual(algorithm.parameterDefinition("KERNEL_SIZE").minimum(), 1)
         result = self.run_algorithm(
             "quickshift_tiled",

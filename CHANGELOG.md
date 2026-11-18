@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9
+
+- Set **Tiled Quickshift segmentation** defaults to 1024-pixel tiles and a
+  128-pixel overlap buffer in the Processing dialog and engine job settings.
+- Update the Processing help, installation guide, and offline help to match.
+
 ## 0.1.8
 
 - Add **Tiled Quickshift segmentation** (`obia:quickshift_tiled`) with tile size,

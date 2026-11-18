@@ -11,12 +11,12 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1p
 </style></head><body>
 <h1>OBIA for QGIS</h1>
 <p class="intro">Segment raster imagery, measure objects, and classify objects or pixels in the Processing Toolbox.</p>
-<p>Plugin 0.1.8 · OBIA 0.2.0 with upstream tiled Quickshift support · experimental · QGIS 3.40–3.x / 4.x</p>
+<p>Plugin 0.1.9 · OBIA 0.2.0 with upstream tiled Quickshift support · experimental · QGIS 3.40–3.x / 4.x</p>
 <nav><a href="#setup">Install</a> · <a href="#workflow">Workflow</a> · <a href="#slic">Segmentation</a> ·
 <a href="#extractfeatures">Features</a> · <a href="#labelobjects">Labels</a> · <a href="#classifyobjects">Classification</a> · <a href="#confusionmatrix">Confusion matrix</a> · <a href="#limits">Limits</a></nav>
 
 <h2 id="setup">Install and maintain the engine</h2>
-<ol><li>Use the built <code>obia_qgis-0.1.8.zip</code>, or an installable plugin ZIP from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest published release</a>.
+<ol><li>Use the built <code>obia_qgis-0.1.9.zip</code>, or an installable plugin ZIP from the <a href="https://github.com/iosefa/obia-qgis/releases/latest">latest published release</a>.
 In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b>. Select the plugin ZIP and enable OBIA.</li>
 <li>Open <b>Plugins → OBIA → Set up OBIA</b> and click <b>Install engine</b>. Allow the download and scientific validation to finish.</li>
 <li>Run <b>Check OBIA dependencies</b> from the Processing Toolbox. Open its HTML report in <b>Processing → Results Viewer</b>.</li></ol>
@@ -82,8 +82,8 @@ Outputs and band/mask behavior match SLIC. Quickshift and Felzenszwalb operate o
 pixels outside the mask can affect nearby segmentation boundaries.</p>
 
 <h2 id="quickshift_tiled">Tiled Quickshift segmentation</h2>
-<p><code>obia:quickshift_tiled</code> uses OBIA's checkerboard overlap replacement. Start with <b>512-pixel tiles</b>,
-a <b>64-pixel buffer</b>, <b>kernel size 3</b>, <b>maximum distance 6</b>, and <b>color-to-space ratio 0.5</b>.
+<p><code>obia:quickshift_tiled</code> uses OBIA's checkerboard overlap replacement. Start with <b>1024-pixel tiles</b>,
+a <b>128-pixel buffer</b>, <b>kernel size 3</b>, <b>maximum distance 6</b>, and <b>color-to-space ratio 0.5</b>.
 Kernel size must be at least 1. The buffer must be smaller than the tile size. An aligned inclusion mask and smoothing sigma are advanced settings.</p>
 <p>Black tiles are segmented first. Buffered white tiles replace objects wholly inside their windows, allowing new objects to cross
 the original tile boundaries. Objects crossing a buffered window's outside edge stay intact and are masked out of the new segmentation.
